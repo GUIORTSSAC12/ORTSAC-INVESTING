@@ -764,7 +764,7 @@ function RadarBackdrop() {
         src={radarBg}
         alt=""
         aria-hidden="true"
-        className="h-full w-full object-contain opacity-30"
+        className="h-full w-full object-contain opacity-65"
       />
     </div>
   );
