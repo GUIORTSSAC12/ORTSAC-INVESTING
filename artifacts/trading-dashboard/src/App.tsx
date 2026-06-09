@@ -760,12 +760,65 @@ function CloseInCard({ title, value }: { title: string; value: string }) {
 function RadarBackdrop() {
   return (
     <div className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center overflow-hidden">
-      <img
-        src={radarBg}
-        alt=""
-        aria-hidden="true"
-        className="h-full w-full object-contain opacity-65"
-      />
+      <div className="relative h-full w-full flex items-center justify-center">
+        <img
+          src={radarBg}
+          alt=""
+          aria-hidden="true"
+          className="h-full w-full object-contain opacity-65"
+          style={{ position: "absolute", inset: 0 }}
+        />
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <svg
+            viewBox="0 0 200 200"
+            style={{
+              height: "100%",
+              width: "auto",
+              animation: "radar-sweep 3s linear infinite",
+              transformOrigin: "center",
+              willChange: "transform",
+            }}
+            aria-hidden="true"
+          >
+            <defs>
+              <radialGradient id="beamGrad" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.9" />
+                <stop offset="60%" stopColor="#22d3ee" stopOpacity="0.4" />
+                <stop offset="100%" stopColor="#22d3ee" stopOpacity="0" />
+              </radialGradient>
+              <linearGradient id="lineGrad" x1="100" y1="100" x2="160" y2="40" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stopColor="#22d3ee" stopOpacity="1" />
+                <stop offset="100%" stopColor="#22d3ee" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            <line
+              x1="100"
+              y1="100"
+              x2="164"
+              y2="40"
+              stroke="url(#lineGrad)"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+            <circle cx="100" cy="100" r="2" fill="#22d3ee" opacity="0.95" />
+          </svg>
+        </div>
+      </div>
+      <style>{`
+        @keyframes radar-sweep {
+          from { transform: rotate(0deg); }
+          to   { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }
