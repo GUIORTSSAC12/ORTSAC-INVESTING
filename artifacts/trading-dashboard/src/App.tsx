@@ -760,59 +760,49 @@ function CloseInCard({ title, value }: { title: string; value: string }) {
 function RadarBackdrop() {
   return (
     <div className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center overflow-hidden">
-      <div className="relative h-full w-full flex items-center justify-center">
-        <img
-          src={radarBg}
-          alt=""
-          aria-hidden="true"
-          className="h-full w-full object-contain opacity-65"
-          style={{ position: "absolute", inset: 0 }}
-        />
-        <div
-          aria-hidden="true"
-          style={{
-            position: "absolute",
-            inset: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <svg
-            viewBox="0 0 200 200"
-            style={{
-              height: "100%",
-              width: "auto",
-              animation: "radar-sweep 3s linear infinite",
-              transformOrigin: "center",
-              willChange: "transform",
-            }}
-            aria-hidden="true"
-          >
-            <defs>
-              <radialGradient id="beamGrad" cx="50%" cy="50%" r="50%">
-                <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.9" />
-                <stop offset="60%" stopColor="#22d3ee" stopOpacity="0.4" />
-                <stop offset="100%" stopColor="#22d3ee" stopOpacity="0" />
-              </radialGradient>
-              <linearGradient id="lineGrad" x1="100" y1="100" x2="160" y2="40" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stopColor="#22d3ee" stopOpacity="1" />
-                <stop offset="100%" stopColor="#22d3ee" stopOpacity="0" />
-              </linearGradient>
-            </defs>
-            <line
-              x1="100"
-              y1="100"
-              x2="164"
-              y2="40"
-              stroke="url(#lineGrad)"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            />
-            <circle cx="100" cy="100" r="2" fill="#22d3ee" opacity="0.95" />
-          </svg>
-        </div>
-      </div>
+      {/* Static background image */}
+      <img
+        src={radarBg}
+        alt=""
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          objectFit: "contain",
+          opacity: 0.65,
+        }}
+      />
+      {/* Animated sweep — pure CSS conic-gradient, no SVG gradient artifacts */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          width: "min(100%, 100%)",
+          aspectRatio: "1",
+          borderRadius: "50%",
+          background:
+            "conic-gradient(from 0deg, transparent 0deg, rgba(34,211,238,0.55) 1deg, rgba(34,211,238,0.18) 18deg, transparent 40deg)",
+          animation: "radar-sweep 3s linear infinite",
+          transformOrigin: "center",
+          willChange: "transform",
+          mixBlendMode: "screen",
+        }}
+      />
+      {/* Centre glow dot */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          width: 8,
+          height: 8,
+          borderRadius: "50%",
+          background: "#22d3ee",
+          boxShadow: "0 0 8px 4px rgba(34,211,238,0.7)",
+          opacity: 0.9,
+        }}
+      />
       <style>{`
         @keyframes radar-sweep {
           from { transform: rotate(0deg); }
