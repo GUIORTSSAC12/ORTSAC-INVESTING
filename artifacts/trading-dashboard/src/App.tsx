@@ -595,10 +595,6 @@ function Index({ onLogout }: { onLogout: () => void }) {
               </div>
             </div>
 
-            <div className="relative z-10 mt-6 text-xs text-muted-foreground">
-              {lastUpdate ? `Última atualização: ${lastUpdate.toLocaleTimeString()}` : "—"}
-            </div>
-
             <div className="relative z-10 mt-10">
               <MarketStatusBanner open={marketOpen} />
             </div>
@@ -772,8 +768,11 @@ function CloseInCard({ title, value }: { title: string; value: string }) {
 
 function RadarBackdrop() {
   return (
-    <div className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center overflow-hidden">
-      {/* Static background image */}
+    <div
+      className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center overflow-hidden"
+      style={{ border: "none", outline: "none" }}
+    >
+      {/* Static background — opacity baixa para suprimir o feixe pré-renderizado no JPEG */}
       <img
         src={radarBg}
         alt=""
@@ -784,10 +783,12 @@ function RadarBackdrop() {
           width: "100%",
           height: "100%",
           objectFit: "contain",
-          opacity: 0.65,
+          opacity: 0.35,
+          border: "none",
+          outline: "none",
         }}
       />
-      {/* Animated sweep — pure CSS conic-gradient, no SVG gradient artifacts */}
+      {/* Animated sweep — conic-gradient puro, sem SVG, sem seams */}
       <div
         aria-hidden="true"
         style={{
@@ -795,11 +796,16 @@ function RadarBackdrop() {
           width: "min(100%, 100%)",
           aspectRatio: "1",
           borderRadius: "50%",
+          border: "none",
+          outline: "none",
           background:
-            "conic-gradient(from 0deg, transparent 0deg, rgba(34,211,238,0.55) 1deg, rgba(34,211,238,0.18) 18deg, transparent 40deg)",
+            "conic-gradient(from -2deg, transparent 0deg, rgba(34,211,238,0.65) 2deg, rgba(34,211,238,0.25) 20deg, transparent 42deg)",
           animation: "radar-sweep 3s linear infinite",
           transformOrigin: "center",
           willChange: "transform",
+          backfaceVisibility: "hidden",
+          WebkitBackfaceVisibility: "hidden",
+          perspective: "1000px",
           mixBlendMode: "screen",
         }}
       />
@@ -811,9 +817,10 @@ function RadarBackdrop() {
           width: 8,
           height: 8,
           borderRadius: "50%",
+          border: "none",
           background: "#22d3ee",
-          boxShadow: "0 0 8px 4px rgba(34,211,238,0.7)",
-          opacity: 0.9,
+          boxShadow: "0 0 10px 5px rgba(34,211,238,0.75)",
+          opacity: 0.95,
         }}
       />
       <style>{`
