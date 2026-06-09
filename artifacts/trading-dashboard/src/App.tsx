@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { ThumbsDown, ThumbsUp, Lock, User, LogOut, Eye, EyeOff } from "lucide-react";
-import radarBg from "./assets/radar-bg.jpeg";
 
 const AUTH_KEY = "dashboard_auth_v1";
 const AUTH_USER = "guilhermeortsac";
@@ -768,67 +767,14 @@ function CloseInCard({ title, value }: { title: string; value: string }) {
 
 function RadarBackdrop() {
   return (
-    <div
-      className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center overflow-hidden"
-      style={{ border: "none", outline: "none" }}
-    >
-      {/* Static background — opacity baixa para suprimir o feixe pré-renderizado no JPEG */}
-      <img
-        src={radarBg}
-        alt=""
+    <div className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center overflow-hidden">
+      <svg
+        viewBox="0 0 200 200"
+        className="h-[90%] w-auto opacity-10"
         aria-hidden="true"
-        style={{
-          position: "absolute",
-          inset: 0,
-          width: "100%",
-          height: "100%",
-          objectFit: "contain",
-          opacity: 0.35,
-          border: "none",
-          outline: "none",
-        }}
-      />
-      {/* Animated sweep — conic-gradient puro, sem SVG, sem seams */}
-      <div
-        aria-hidden="true"
-        style={{
-          position: "absolute",
-          width: "min(100%, 100%)",
-          aspectRatio: "1",
-          borderRadius: "50%",
-          border: "none",
-          outline: "none",
-          background:
-            "conic-gradient(from -2deg, transparent 0deg, rgba(34,211,238,0.65) 2deg, rgba(34,211,238,0.25) 20deg, transparent 42deg)",
-          animation: "radar-sweep 3s linear infinite",
-          transformOrigin: "center",
-          willChange: "transform",
-          backfaceVisibility: "hidden",
-          WebkitBackfaceVisibility: "hidden",
-          perspective: "1000px",
-          mixBlendMode: "screen",
-        }}
-      />
-      {/* Centre glow dot */}
-      <div
-        aria-hidden="true"
-        style={{
-          position: "absolute",
-          width: 8,
-          height: 8,
-          borderRadius: "50%",
-          border: "none",
-          background: "#22d3ee",
-          boxShadow: "0 0 10px 5px rgba(34,211,238,0.75)",
-          opacity: 0.95,
-        }}
-      />
-      <style>{`
-        @keyframes radar-sweep {
-          from { transform: rotate(0deg); }
-          to   { transform: rotate(360deg); }
-        }
-      `}</style>
+      >
+        <circle cx="100" cy="100" r="86" fill="none" stroke="#22d3ee" strokeWidth="0.6" />
+      </svg>
     </div>
   );
 }
