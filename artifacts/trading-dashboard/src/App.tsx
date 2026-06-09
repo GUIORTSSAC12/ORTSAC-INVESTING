@@ -149,7 +149,7 @@ function Login({ onSuccess }: { onSuccess: () => void }) {
 const SYMBOL = "NCFXGBP2JPY-USDT";
 const DISPLAY_SYMBOL = "GBP/JPY";
 const API_URL = `/api/ticker?symbol=${SYMBOL}`;
-const POLL_MS = 30000;
+const POLL_MS = 10000;
 const BACKOFF_MS = 5 * 60 * 1000;
 
 const ATR14_REFERENCE_LEVELS = [0.51, 0.5, 0.4, 0.35, 0.31] as const;
@@ -551,7 +551,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
               </div>
             </div>
 
-            <div className="relative z-10 mt-6 flex items-start justify-between gap-6">
+            <div className="relative z-10 mt-6 flex items-start justify-between">
               <div>
                 {loading && !data ? (
                   <div className="h-12 w-48 animate-pulse rounded-md bg-muted" />
@@ -586,7 +586,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
               {lastUpdate ? `Última atualização: ${lastUpdate.toLocaleTimeString()}` : "—"}
             </div>
 
-            <div className="relative z-10">
+            <div className="relative z-10 mt-10">
               <MarketStatusBanner open={marketOpen} />
             </div>
           </div>
