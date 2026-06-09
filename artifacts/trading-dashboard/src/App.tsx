@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ThumbsDown, ThumbsUp, Lock, User, LogOut, Eye, EyeOff } from "lucide-react";
+import radarBg from "./assets/radar-bg.jpeg";
 
 const AUTH_KEY = "dashboard_auth_v1";
 const AUTH_USER = "guilhermeortsac";
@@ -757,28 +758,14 @@ function CloseInCard({ title, value }: { title: string; value: string }) {
 }
 
 function RadarBackdrop() {
-  const rings = [16, 30, 44, 58, 72, 86];
   return (
-    <div className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center">
-      <svg
-        viewBox="0 0 200 200"
-        className="h-[110%] w-auto max-w-none opacity-[0.13]"
+    <div className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center overflow-hidden">
+      <img
+        src={radarBg}
+        alt=""
         aria-hidden="true"
-      >
-        <g fill="none" stroke="#22d3ee" strokeWidth="0.5">
-          {rings.map((r) => (
-            <circle key={r} cx="100" cy="100" r={r} />
-          ))}
-          <line x1="100" y1="14" x2="100" y2="186" />
-          <line x1="14" y1="100" x2="186" y2="100" />
-          <line x1="36" y1="36" x2="164" y2="164" />
-          <line x1="164" y1="36" x2="36" y2="164" />
-        </g>
-        <g stroke="#22d3ee" strokeWidth="0.8" strokeLinecap="round" opacity="0.9">
-          <line x1="100" y1="100" x2="160" y2="55" />
-        </g>
-        <circle cx="100" cy="100" r="1.6" fill="#22d3ee" />
-      </svg>
+        className="h-full w-full object-contain opacity-30"
+      />
     </div>
   );
 }
