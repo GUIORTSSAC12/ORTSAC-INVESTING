@@ -326,7 +326,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
     ): Promise<{ data: TFData | null; status: string | null }> => {
       try {
         const r = await fetch(
-          `/api/klines?symbol=${SYMBOL}&interval=${interval}&limit=300`,
+          `/api/klines?symbol=${SYMBOL}&interval=${interval}&limit=210`,
           { cache: "no-store" },
         );
         const j = await r.json();
@@ -343,7 +343,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
         if (!arr.length) {
           return { data: null, status: "Sem candles disponíveis" };
         }
-        const ks: Kline[] = arr
+        const allKs: Kline[] = arr
           .map((k) => ({
             open: Number(k.open),
             high: Number(k.high),
@@ -352,7 +352,20 @@ function Index({ onLogout }: { onLogout: () => void }) {
             time: Number(k.time),
           }))
           .sort((a, b) => a.time - b.time);
-        return { data: processTF(ks), status: null };
+
+        // Remove o candle em formação (último) e usa só os 200 fechados mais recentes
+        const closedKs = allKs.slice(0, -1).slice(-200);
+
+        if (interval === "4h") {
+          // eslint-disable-next-line no-console
+          console.log(
+            `[MA ${interval}] candles fechados: ${closedKs.length}` +
+            ` | primeiro close: ${closedKs[0]?.close} (${new Date(closedKs[0]?.time).toISOString()})` +
+            ` | último close: ${closedKs[closedKs.length - 1]?.close} (${new Date(closedKs[closedKs.length - 1]?.time).toISOString()})`,
+          );
+        }
+
+        return { data: processTF(closedKs), status: null };
       } catch (e) {
         return { data: null, status: "Erro de rede" };
       }
