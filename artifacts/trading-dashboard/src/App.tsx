@@ -359,7 +359,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
         if (interval === "4h") {
           // eslint-disable-next-line no-console
           console.log(
-            `[MA ${interval}] candles fechados: ${closedKs.length}` +
+            `[EMA ${interval}] candles fechados: ${closedKs.length}` +
             ` | primeiro close: ${closedKs[0]?.close} (${new Date(closedKs[0]?.time).toISOString()})` +
             ` | último close: ${closedKs[closedKs.length - 1]?.close} (${new Date(closedKs[closedKs.length - 1]?.time).toISOString()})`,
           );
@@ -580,7 +580,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
                 transformOrigin: "50% 50%",
                 animation: "radar-sweep 5s linear infinite",
                 background:
-                  "conic-gradient(from 0deg at 50% 50%, transparent 0deg, transparent 315deg, rgba(0,255,180,0.03) 328deg, rgba(0,255,180,0.12) 342deg, rgba(0,255,180,0.45) 356deg, rgba(0,255,180,0.85) 360deg)",
+                  "conic-gradient(from 0deg at 50% 50%, transparent 0deg, transparent 315deg, rgba(0,220,255,0.03) 328deg, rgba(0,220,255,0.13) 342deg, rgba(0,220,255,0.48) 356deg, rgba(0,220,255,0.9) 360deg)",
                 mixBlendMode: "screen",
               }}
             />
@@ -723,13 +723,13 @@ function MaValue({ ma20, ma99 }: { ma20: number; ma99: number }) {
   return (
     <div className="space-y-1 text-sm tabular-nums">
       <div className="flex flex-row flex-nowrap items-center justify-between gap-2 whitespace-nowrap">
-        <span className="text-yellow-400 whitespace-nowrap">MÉDIA 99:</span>
+        <span className="text-yellow-400 whitespace-nowrap">EMA 99:</span>
         <span className="font-semibold text-yellow-400 whitespace-nowrap">
           {valid99 ? ma99.toFixed(3) : "N/A"}
         </span>
       </div>
       <div className="flex flex-row flex-nowrap items-center justify-between gap-2 whitespace-nowrap">
-        <span className="text-rose-400 whitespace-nowrap">MÉDIA 20:</span>
+        <span className="text-rose-400 whitespace-nowrap">EMA 20:</span>
         <span className={`rounded px-2 py-0.5 font-semibold whitespace-nowrap ${bg}`}>
           {valid20 ? ma20.toFixed(3) : "N/A"}
         </span>
