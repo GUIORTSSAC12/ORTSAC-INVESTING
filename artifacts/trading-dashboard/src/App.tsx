@@ -547,7 +547,6 @@ function Index({ onLogout }: { onLogout: () => void }) {
 
         <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div className="relative overflow-hidden rounded-2xl border border-[#4a4a4a] bg-black p-8 shadow-sm">
-            <RadarBackdrop />
             <div className="relative z-10 flex items-baseline justify-between">
               <div className="text-base font-semibold">
                 <span className="text-emerald-400">{DISPLAY_SYMBOL}</span>{" "}
@@ -765,19 +764,6 @@ function CloseInCard({ title, value }: { title: string; value: string }) {
   );
 }
 
-function RadarBackdrop() {
-  return (
-    <div className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center overflow-hidden">
-      <svg
-        viewBox="0 0 200 200"
-        className="h-[90%] w-auto opacity-10"
-        aria-hidden="true"
-      >
-        <circle cx="100" cy="100" r="86" fill="none" stroke="#22d3ee" strokeWidth="0.6" />
-      </svg>
-    </div>
-  );
-}
 
 export default function App() {
   return <Gate />;
