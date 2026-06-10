@@ -149,7 +149,7 @@ function Login({ onSuccess }: { onSuccess: () => void }) {
 const SYMBOL = "NCFXGBP2JPY-USDT";
 const DISPLAY_SYMBOL = "GBP/JPY";
 const API_URL = `/api/ticker?symbol=${SYMBOL}`;
-const POLL_MS = 10000;
+const POLL_MS = 30000;
 const BACKOFF_MS = 5 * 60 * 1000;
 
 const ATR14_REFERENCE_LEVELS = [0.51, 0.5, 0.4, 0.35, 0.31] as const;
@@ -159,13 +159,17 @@ type MAs = { ma20: number; ma99: number };
 type TFData = { mas: MAs | null; atr14: number | null; stale?: boolean; error?: string | null };
 
 function ema(values: number[], period: number): number[] {
+  const out: number[] = new Array(values.length).fill(NaN);
+  if (values.length < period) return out;
   const k = 2 / (period + 1);
-  const out: number[] = [];
-  let prev = values[0];
-  out.push(prev);
-  for (let i = 1; i < values.length; i++) {
+  // Seed: SMA of first `period` values — matches TradingView / Pine Script behaviour
+  let sum = 0;
+  for (let i = 0; i < period; i++) sum += values[i];
+  let prev = sum / period;
+  out[period - 1] = prev;
+  for (let i = period; i < values.length; i++) {
     prev = values[i] * k + prev * (1 - k);
-    out.push(prev);
+    out[i] = prev;
   }
   return out;
 }
@@ -197,8 +201,10 @@ function rma(values: number[], period: number): number[] {
 }
 
 function computeSmoothedEMA(closes: number[], period: number, smooth = 9): number | null {
-  if (closes.length < period + smooth) return null;
-  const e = ema(closes, period);
+  if (closes.length < period + smooth - 1) return null;
+  // Filter NaN values that appear before EMA seed kicks in (first period-1 entries)
+  const e = ema(closes, period).filter(Number.isFinite);
+  if (e.length < smooth) return null;
   const s = sma(e, smooth);
   const last = s[s.length - 1];
   return Number.isFinite(last) ? last : null;
@@ -326,7 +332,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
     ): Promise<{ data: TFData | null; status: string | null }> => {
       try {
         const r = await fetch(
-          `/api/klines?symbol=${SYMBOL}&interval=${interval}&limit=210`,
+          `/api/klines?symbol=${SYMBOL}&interval=${interval}&limit=500`,
           { cache: "no-store" },
         );
         const j = await r.json();
@@ -353,8 +359,8 @@ function Index({ onLogout }: { onLogout: () => void }) {
           }))
           .sort((a, b) => a.time - b.time);
 
-        // Remove o candle em formação (último) e usa só os 200 fechados mais recentes
-        const closedKs = allKs.slice(0, -1).slice(-200);
+        // Remove o candle em formação (último) — usa todos os fechados para EMA convergir corretamente
+        const closedKs = allKs.slice(0, -1);
 
         if (interval === "4h") {
           // eslint-disable-next-line no-console
