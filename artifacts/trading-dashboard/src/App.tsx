@@ -200,13 +200,11 @@ function rma(values: number[], period: number): number[] {
   return out;
 }
 
-function computeSmoothedEMA(closes: number[], period: number, smooth = 9): number | null {
-  if (closes.length < period + smooth - 1) return null;
-  // Filter NaN values that appear before EMA seed kicks in (first period-1 entries)
-  const e = ema(closes, period).filter(Number.isFinite);
-  if (e.length < smooth) return null;
-  const s = sma(e, smooth);
-  const last = s[s.length - 1];
+// Raw EMA — "Suavização da linha" in BingX/TradingView is visual only, the legend value is pure EMA
+function computeEMA(closes: number[], period: number): number | null {
+  if (closes.length < period) return null;
+  const e = ema(closes, period);
+  const last = e[e.length - 1];
   return Number.isFinite(last) ? last : null;
 }
 
@@ -224,14 +222,15 @@ function computeATR14(klines: Kline[]): number | null {
   return Number.isFinite(last) ? last : null;
 }
 
-function processTF(klines: Kline[]): TFData {
+// klines = all candles including forming; closedKlines = forming candle excluded (for ATR)
+function processTF(klines: Kline[], closedKlines: Kline[]): TFData {
   const closes = klines.map((k) => k.close);
   return {
     mas: {
-      ma20: computeSmoothedEMA(closes, 20) ?? NaN,
-      ma99: computeSmoothedEMA(closes, 99) ?? NaN,
+      ma20: computeEMA(closes, 20) ?? NaN,
+      ma99: computeEMA(closes, 99) ?? NaN,
     },
-    atr14: computeATR14(klines),
+    atr14: computeATR14(closedKlines),  // ATR usa só candles fechados (sem distorção da vela atual)
   };
 }
 
@@ -359,19 +358,11 @@ function Index({ onLogout }: { onLogout: () => void }) {
           }))
           .sort((a, b) => a.time - b.time);
 
-        // Remove o candle em formação (último) — usa todos os fechados para EMA convergir corretamente
+        // EMA inclui vela em formação (close = preço live); ATR usa só fechadas
         const closedKs = allKs.slice(0, -1);
 
-        if (interval === "4h") {
-          // eslint-disable-next-line no-console
-          console.log(
-            `[EMA ${interval}] candles fechados: ${closedKs.length}` +
-            ` | primeiro close: ${closedKs[0]?.close} (${new Date(closedKs[0]?.time).toISOString()})` +
-            ` | último close: ${closedKs[closedKs.length - 1]?.close} (${new Date(closedKs[closedKs.length - 1]?.time).toISOString()})`,
-          );
-        }
 
-        return { data: processTF(closedKs), status: null };
+        return { data: processTF(allKs, closedKs), status: null };
       } catch (e) {
         return { data: null, status: "Erro de rede" };
       }
