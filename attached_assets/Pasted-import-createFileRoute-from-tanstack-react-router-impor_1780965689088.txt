@@ -539,7 +539,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
         <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           {/* GBP/JPY PERPETUAL */}
           <div className="relative overflow-hidden rounded-2xl border border-[#4a4a4a] bg-black p-8 shadow-sm">
-            <RadarBackdrop />
+            
             <div className="relative z-10 flex items-baseline justify-between">
               <div className="text-base font-semibold">
                 <span className="text-emerald-400">{DISPLAY_SYMBOL}</span>{" "}
@@ -773,7 +773,7 @@ function CloseInCard({ title, value }: { title: string; value: string }) {
   );
 }
 
-function RadarBackdrop() {
+
   const rings = [16, 30, 44, 58, 72, 86];
   return (
     <div className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center">
