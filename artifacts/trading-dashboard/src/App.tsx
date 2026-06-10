@@ -548,6 +548,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
 
         <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div className="relative overflow-hidden rounded-2xl border border-[#4a4a4a] bg-black p-8 shadow-sm">
+            {/* Radar static background */}
             <img
               src={radarBg}
               alt=""
@@ -563,6 +564,24 @@ function Index({ onLogout }: { onLogout: () => void }) {
                 border: "none",
                 outline: "none",
                 pointerEvents: "none",
+              }}
+            />
+
+            {/* Radar sweep beam — rotates clockwise, pivot fixed at 50% 50% (center of card = center of radar) */}
+            <div
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                inset: 0,
+                zIndex: 1,
+                pointerEvents: "none",
+                overflow: "hidden",
+                borderRadius: "inherit",
+                transformOrigin: "50% 50%",
+                animation: "radar-sweep 5s linear infinite",
+                background:
+                  "conic-gradient(from 0deg at 50% 50%, transparent 0deg, transparent 315deg, rgba(0,255,180,0.03) 328deg, rgba(0,255,180,0.12) 342deg, rgba(0,255,180,0.45) 356deg, rgba(0,255,180,0.85) 360deg)",
+                mixBlendMode: "screen",
               }}
             />
             <div className="relative z-10 flex items-baseline justify-between">
@@ -611,7 +630,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
               </div>
             </div>
 
-            <div className="relative z-10 mt-10">
+            <div className="relative z-10 mt-24">
               <MarketStatusBanner open={marketOpen} />
             </div>
           </div>
