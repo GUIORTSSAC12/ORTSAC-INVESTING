@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ThumbsDown, ThumbsUp, Lock, User, LogOut, Eye, EyeOff } from "lucide-react";
+import radarBg from "./assets/radar-bg.jpeg";
 
 const AUTH_KEY = "dashboard_auth_v1";
 const AUTH_USER = "guilhermeortsac";
@@ -547,6 +548,23 @@ function Index({ onLogout }: { onLogout: () => void }) {
 
         <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div className="relative overflow-hidden rounded-2xl border border-[#4a4a4a] bg-black p-8 shadow-sm">
+            <img
+              src={radarBg}
+              alt=""
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                inset: 0,
+                width: "100%",
+                height: "100%",
+                objectFit: "contain",
+                opacity: 0.75,
+                zIndex: 0,
+                border: "none",
+                outline: "none",
+                pointerEvents: "none",
+              }}
+            />
             <div className="relative z-10 flex items-baseline justify-between">
               <div className="text-base font-semibold">
                 <span className="text-emerald-400">{DISPLAY_SYMBOL}</span>{" "}
