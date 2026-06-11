@@ -712,12 +712,19 @@ function EntradaCard({ title, bgImage }: { title: string; bgImage?: string }) {
   if (bgImage) {
     return (
       <div
-        className="rounded-2xl border border-[#4a4a4a] shadow-sm min-h-[120px]"
         style={{
+          boxSizing: "border-box",
+          border: "1px solid #4a4a4a",
+          borderRadius: "1rem",
+          minHeight: "120px",
           backgroundImage: `url(${bgImage})`,
           backgroundSize: "cover",
           backgroundPosition: "center",
           backgroundRepeat: "no-repeat",
+          outline: "none",
+          boxShadow: "none",
+          margin: 0,
+          padding: 0,
         }}
       />
     );
