@@ -691,7 +691,15 @@ function Index({ onLogout }: { onLogout: () => void }) {
 
         <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <EntradaCard title="ENTRADAS 2H" bgImage={entradasBg} />
+            <div
+              className="w-full relative border border-[#4a4a4a] bg-black min-h-[120px] rounded-2xl"
+              style={{
+                backgroundImage: `url(${entradasBg})`,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+                backgroundRepeat: "no-repeat",
+              }}
+            />
             <EntradaCard title="ENTRADAS 4H" />
           </div>
 
