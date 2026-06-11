@@ -695,7 +695,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
               className="w-full relative border border-[#4a4a4a] bg-black min-h-[120px] rounded-2xl"
               style={{
                 backgroundImage: `url(${entradasBg})`,
-                backgroundSize: "cover",
+                backgroundSize: "120%",
                 backgroundPosition: "center",
                 backgroundRepeat: "no-repeat",
               }}
