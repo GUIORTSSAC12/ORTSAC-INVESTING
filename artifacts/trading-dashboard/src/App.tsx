@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ThumbsDown, ThumbsUp, Lock, User, LogOut, Eye, EyeOff } from "lucide-react";
 import radarBg from "./assets/radar-bg.jpeg";
 import royalLondon from "./assets/royal-london.jpeg";
+import entradasBg from "./assets/entradas-bg.jpeg";
 
 const AUTH_KEY = "dashboard_auth_v1";
 const AUTH_USER = "guilhermeortsac";
@@ -640,7 +641,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
                 alt=""
                 aria-hidden="true"
                 className="pointer-events-none absolute inset-0 h-full w-full object-contain object-center"
-                style={{ opacity: 0.35 }}
+                style={{ opacity: 0.55 }}
               />
               <div className="relative z-10 text-base font-semibold text-muted-foreground">
                 MATRIZ DE FORÇA
@@ -690,7 +691,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
 
         <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <EntradaCard title="ENTRADAS 2H" />
+            <EntradaCard title="ENTRADAS 2H" bgImage={entradasBg} />
             <EntradaCard title="ENTRADAS 4H" />
           </div>
 
@@ -707,11 +708,20 @@ function Index({ onLogout }: { onLogout: () => void }) {
   );
 }
 
-function EntradaCard({ title }: { title: string }) {
+function EntradaCard({ title, bgImage }: { title: string; bgImage?: string }) {
   return (
-    <div className="rounded-2xl border border-[#4a4a4a] bg-black p-5 shadow-sm min-h-[120px]">
-      <div className="text-base font-semibold tracking-wide text-muted-foreground">{title}</div>
-      <div className="mt-3 text-xs text-muted-foreground/70">—</div>
+    <div className="relative overflow-hidden rounded-2xl border border-[#4a4a4a] bg-black p-5 shadow-sm min-h-[120px]">
+      {bgImage && (
+        <img
+          src={bgImage}
+          alt=""
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover object-center"
+          style={{ opacity: 0.75 }}
+        />
+      )}
+      <div className="relative z-10 text-base font-semibold tracking-wide text-muted-foreground">{title}</div>
+      <div className="relative z-10 mt-3 text-xs text-muted-foreground/70">—</div>
     </div>
   );
 }
