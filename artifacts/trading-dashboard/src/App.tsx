@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ThumbsDown, ThumbsUp, Lock, User, LogOut, Eye, EyeOff } from "lucide-react";
 import radarBg from "./assets/radar-bg.jpeg";
+import royalLondon from "./assets/royal-london.jpeg";
 
 const AUTH_KEY = "dashboard_auth_v1";
 const AUTH_USER = "guilhermeortsac";
@@ -633,11 +634,18 @@ function Index({ onLogout }: { onLogout: () => void }) {
           </div>
 
           <div className="flex flex-col gap-6">
-            <div className="rounded-2xl border border-[#4a4a4a] bg-black p-5 shadow-sm">
-              <div className="text-base font-semibold text-muted-foreground">
+            <div className="relative overflow-hidden rounded-2xl border border-[#4a4a4a] bg-black p-5 shadow-sm">
+              <img
+                src={royalLondon}
+                alt=""
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 h-full w-full object-contain object-center"
+                style={{ opacity: 0.35 }}
+              />
+              <div className="relative z-10 text-base font-semibold text-muted-foreground">
                 MATRIZ DE FORÇA
               </div>
-              <div className="mt-3 space-y-1.5">
+              <div className="relative z-10 mt-3 space-y-1.5">
                 {matrix.length === 0 ? (
                   <div className="text-xs text-muted-foreground">—</div>
                 ) : (
