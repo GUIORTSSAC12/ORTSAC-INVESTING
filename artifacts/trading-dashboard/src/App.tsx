@@ -709,20 +709,23 @@ function Index({ onLogout }: { onLogout: () => void }) {
 }
 
 function EntradaCard({ title, bgImage }: { title: string; bgImage?: string }) {
+  if (bgImage) {
+    return (
+      <div
+        className="rounded-2xl border border-[#4a4a4a] shadow-sm min-h-[120px]"
+        style={{
+          backgroundImage: `url(${bgImage})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+        }}
+      />
+    );
+  }
   return (
-    <div className={`relative overflow-hidden rounded-2xl border border-[#4a4a4a] bg-black shadow-sm min-h-[120px] ${bgImage ? "" : "p-5"}`}>
-      {bgImage ? (
-        <img
-          src={bgImage}
-          alt={title}
-          className="absolute inset-0 h-full w-full object-cover object-center"
-        />
-      ) : (
-        <>
-          <div className="text-base font-semibold tracking-wide text-muted-foreground">{title}</div>
-          <div className="mt-3 text-xs text-muted-foreground/70">—</div>
-        </>
-      )}
+    <div className="rounded-2xl border border-[#4a4a4a] bg-black p-5 shadow-sm min-h-[120px]">
+      <div className="text-base font-semibold tracking-wide text-muted-foreground">{title}</div>
+      <div className="mt-3 text-xs text-muted-foreground/70">—</div>
     </div>
   );
 }
