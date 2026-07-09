@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { ThumbsDown, ThumbsUp, Lock, User, LogOut, Eye, EyeOff } from "lucide-react";
 import radarBg from "./assets/radar-bg.jpeg";
 import royalLondon from "./assets/royal-london.jpeg";
-import entradasBg from "./assets/entradas-bg.jpeg";
 
 const AUTH_KEY = "dashboard_auth_v1";
 const AUTH_USER = "guilhermeortsac";
@@ -641,7 +640,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
                 alt=""
                 aria-hidden="true"
                 className="pointer-events-none absolute inset-0 h-full w-full object-contain object-center"
-                style={{ opacity: 0.55 }}
+                style={{ opacity: 0.35 }}
               />
               <div className="relative z-10 text-base font-semibold text-muted-foreground">
                 MATRIZ DE FORÇA
@@ -691,15 +690,11 @@ function Index({ onLogout }: { onLogout: () => void }) {
 
         <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div
-              className="w-full relative border border-[#4a4a4a] bg-black min-h-[120px] rounded-2xl"
-              style={{
-                backgroundImage: `url(${entradasBg})`,
-                backgroundSize: "120%",
-                backgroundPosition: "center",
-                backgroundRepeat: "no-repeat",
-              }}
-            />
+            <div className="flex flex-col gap-4">
+              <EntradaCard title="ENTRADAS 2H" />
+              {/* Novo card vazio — mesma largura e altura do card acima */}
+              <div className="rounded-2xl border border-[#4a4a4a] bg-black min-h-[120px]" />
+            </div>
             <EntradaCard title="ENTRADAS 4H" />
           </div>
 
@@ -716,27 +711,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
   );
 }
 
-function EntradaCard({ title, bgImage }: { title: string; bgImage?: string }) {
-  if (bgImage) {
-    return (
-      <div
-        style={{
-          boxSizing: "border-box",
-          border: "1px solid #4a4a4a",
-          borderRadius: "1rem",
-          minHeight: "120px",
-          backgroundImage: `url(${bgImage})`,
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-          backgroundRepeat: "no-repeat",
-          outline: "none",
-          boxShadow: "none",
-          margin: 0,
-          padding: 0,
-        }}
-      />
-    );
-  }
+function EntradaCard({ title }: { title: string }) {
   return (
     <div className="rounded-2xl border border-[#4a4a4a] bg-black p-5 shadow-sm min-h-[120px]">
       <div className="text-base font-semibold tracking-wide text-muted-foreground">{title}</div>
