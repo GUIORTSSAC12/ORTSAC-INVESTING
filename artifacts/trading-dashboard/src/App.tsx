@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ThumbsDown, ThumbsUp, Lock, User, LogOut, Eye, EyeOff, ChevronDown } from "lucide-react";
 import radarBg from "./assets/radar-bg.jpeg";
 import royalLondon from "./assets/royal-london.jpeg";
+import entradasBg from "./assets/entradas-bg.jpeg";
 
 const AUTH_KEY = "dashboard_auth_v1";
 const AUTH_USER = "guilhermeortsac";
@@ -816,9 +817,19 @@ function Index({ onLogout }: { onLogout: () => void }) {
 
 function EntradaCard({ title, divRef }: { title: string; divRef?: React.RefObject<HTMLDivElement | null> }) {
   return (
-    <div ref={divRef} className="rounded-2xl border border-[#4a4a4a] bg-black p-5 shadow-sm min-h-[120px]">
-      <div className="text-base font-semibold tracking-wide text-muted-foreground">{title}</div>
-      <div className="mt-3 text-xs text-muted-foreground/70">—</div>
+    <div
+      ref={divRef}
+      className="relative overflow-hidden rounded-2xl border border-[#4a4a4a] bg-black shadow-sm min-h-[120px]"
+    >
+      <img
+        src={entradasBg}
+        alt=""
+        className="absolute inset-0 w-full h-full object-contain"
+        draggable={false}
+      />
+      <div className="relative z-10 p-5">
+        <div className="text-base font-semibold tracking-wide text-cyan-400">{title}</div>
+      </div>
     </div>
   );
 }
