@@ -703,12 +703,11 @@ function Index({ onLogout }: { onLogout: () => void }) {
           </div>
         </section>
 
-        {/* Novo card — só visível com scroll */}
-        <div className="mt-6 pb-8">
-          <div
-            className="rounded-2xl border border-[#4a4a4a] bg-black"
-            style={{ minHeight: "120px", width: "100%" }}
-          />
+        {/* Novo card — mesma estrutura de grid do ENTRADAS 2H, só visível com scroll */}
+        <div className="mt-6 pb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="rounded-2xl border border-[#4a4a4a] bg-black min-h-[120px]" />
+          </div>
         </div>
       </div>
     </div>
