@@ -733,7 +733,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
                 alt=""
                 aria-hidden="true"
                 className="pointer-events-none absolute inset-0 h-full w-full object-contain object-center"
-                style={{ opacity: 0.35 }}
+                style={{ opacity: 0.75 }}
               />
               <div className="relative z-10 text-base font-semibold text-muted-foreground">
                 MATRIZ DE FORÇA
