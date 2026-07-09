@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ThumbsDown, ThumbsUp, Lock, User, LogOut, Eye, EyeOff } from "lucide-react";
 import radarBg from "./assets/radar-bg.jpeg";
 import royalLondon from "./assets/royal-london.jpeg";
@@ -264,6 +264,18 @@ function Index({ onLogout }: { onLogout: () => void }) {
   const [tf2h, setTf2h] = useState<TFData | null>(null);
   const [tf4h, setTf4h] = useState<TFData | null>(null);
   const [paused, setPaused] = useState(false);
+  const entrada2hRef = useRef<HTMLDivElement>(null);
+  const [entrada2hHeight, setEntrada2hHeight] = useState(0);
+
+  useEffect(() => {
+    const el = entrada2hRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      setEntrada2hHeight(entry.borderBoxSize[0].blockSize);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
     setNow(new Date());
@@ -690,7 +702,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
 
         <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <EntradaCard title="ENTRADAS 2H" />
+            <EntradaCard title="ENTRADAS 2H" divRef={entrada2hRef} />
             <EntradaCard title="ENTRADAS 4H" />
           </div>
 
@@ -706,7 +718,10 @@ function Index({ onLogout }: { onLogout: () => void }) {
         {/* Novo card separado — mesma largura e altura do ENTRADAS 2H, visível só com scroll */}
         <section className="mt-6 pb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="rounded-2xl border border-[#4a4a4a] bg-black p-5 shadow-sm min-h-[120px]" />
+            <div
+              className="rounded-2xl border border-[#4a4a4a] bg-black p-5 shadow-sm"
+              style={{ height: entrada2hHeight > 0 ? entrada2hHeight : undefined, minHeight: 120 }}
+            />
           </div>
         </section>
 
@@ -715,9 +730,9 @@ function Index({ onLogout }: { onLogout: () => void }) {
   );
 }
 
-function EntradaCard({ title }: { title: string }) {
+function EntradaCard({ title, divRef }: { title: string; divRef?: React.RefObject<HTMLDivElement | null> }) {
   return (
-    <div className="rounded-2xl border border-[#4a4a4a] bg-black p-5 shadow-sm min-h-[120px]">
+    <div ref={divRef} className="rounded-2xl border border-[#4a4a4a] bg-black p-5 shadow-sm min-h-[120px]">
       <div className="text-base font-semibold tracking-wide text-muted-foreground">{title}</div>
       <div className="mt-3 text-xs text-muted-foreground/70">—</div>
     </div>
