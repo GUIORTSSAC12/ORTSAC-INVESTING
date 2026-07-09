@@ -690,11 +690,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
 
         <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="flex flex-col gap-4">
-              <EntradaCard title="ENTRADAS 2H" />
-              {/* Novo card vazio — mesma largura e altura do card acima */}
-              <div className="rounded-2xl border border-[#4a4a4a] bg-black min-h-[120px]" />
-            </div>
+            <EntradaCard title="ENTRADAS 2H" />
             <EntradaCard title="ENTRADAS 4H" />
           </div>
 
@@ -706,6 +702,14 @@ function Index({ onLogout }: { onLogout: () => void }) {
             </div>
           </div>
         </section>
+
+        {/* Novo card — só visível com scroll */}
+        <div className="mt-6 pb-8">
+          <div
+            className="rounded-2xl border border-[#4a4a4a] bg-black"
+            style={{ minHeight: "120px", width: "100%" }}
+          />
+        </div>
       </div>
     </div>
   );
