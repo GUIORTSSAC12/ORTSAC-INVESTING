@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ThumbsDown, ThumbsUp, Lock, User, LogOut, Eye, EyeOff } from "lucide-react";
+import { ThumbsDown, ThumbsUp, Lock, User, LogOut, Eye, EyeOff, ChevronDown } from "lucide-react";
 import radarBg from "./assets/radar-bg.jpeg";
 import royalLondon from "./assets/royal-london.jpeg";
 
@@ -251,6 +251,84 @@ const MATRIX_SYMBOLS: { label: string; symbol: string; invert?: boolean }[] = [
   { label: "JPY/USD", symbol: "NCFXUSD2JPY-USDT", invert: true },
   { label: "EUR/GBP", symbol: "NCFXEUR2GBP-USDT" },
 ];
+
+function FiltroCard({ title, cardId, rows }: { title: string; cardId: string; rows: string[] }) {
+  const [open, setOpen] = useState<boolean[]>(rows.map(() => false));
+  const [notes, setNotes] = useState<string[]>(rows.map(() => ""));
+  const timersRef = useRef<(ReturnType<typeof setTimeout> | null)[]>(rows.map(() => null));
+
+  useEffect(() => {
+    rows.forEach((_, i) => {
+      fetch(`/api/notes/${cardId}_${i}`)
+        .then((r) => r.json())
+        .then((data: { content?: string }) => {
+          setNotes((prev) => {
+            const next = [...prev];
+            next[i] = data.content ?? "";
+            return next;
+          });
+        })
+        .catch(() => {});
+    });
+    return () => {
+      timersRef.current.forEach((t) => t && clearTimeout(t));
+    };
+  }, [cardId]);
+
+  const handleChange = (i: number, value: string) => {
+    setNotes((prev) => {
+      const next = [...prev];
+      next[i] = value;
+      return next;
+    });
+    if (timersRef.current[i]) clearTimeout(timersRef.current[i]!);
+    timersRef.current[i] = setTimeout(() => {
+      fetch(`/api/notes/${cardId}_${i}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: value }),
+      }).catch(() => {});
+    }, 1000);
+  };
+
+  const toggleRow = (i: number) => {
+    setOpen((prev) => {
+      const next = [...prev];
+      next[i] = !next[i];
+      return next;
+    });
+  };
+
+  return (
+    <div className="rounded-2xl border border-[#4a4a4a] bg-black p-4 shadow-sm">
+      <div className="mb-3 text-sm font-bold tracking-widest text-cyan-400">{title}</div>
+      <div className="space-y-2">
+        {rows.map((label, i) => (
+          <div key={i} className="overflow-hidden rounded-lg border border-[#2a2a2a] bg-[#0d1117]">
+            <button
+              className="flex w-full items-center justify-between px-3 py-2.5 text-left"
+              onClick={() => toggleRow(i)}
+            >
+              <span className="text-xs font-mono tracking-wider text-cyan-400">{label}</span>
+              <ChevronDown
+                className={`h-4 w-4 flex-shrink-0 text-gray-500 transition-transform duration-200 ${open[i] ? "rotate-180" : ""}`}
+              />
+            </button>
+            {open[i] && (
+              <textarea
+                className="w-full resize-none border-t border-[#2a2a2a] bg-transparent px-3 py-2 text-xs text-gray-300 placeholder-gray-600 focus:outline-none"
+                rows={4}
+                value={notes[i]}
+                onChange={(e) => handleChange(i, e.target.value)}
+                placeholder="Anotações..."
+              />
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function Index({ onLogout }: { onLogout: () => void }) {
   const [data, setData] = useState<TickerData | null>(null);
@@ -715,16 +793,18 @@ function Index({ onLogout }: { onLogout: () => void }) {
           </div>
         </section>
 
-        {/* Novo card separado — mesma largura e altura do ENTRADAS 2H, visível só com scroll */}
+        {/* Filtros — visível só com scroll */}
         <section className="mt-6 pb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div
-              className="rounded-2xl border border-[#4a4a4a] bg-black p-5 shadow-sm"
-              style={{ height: entrada2hHeight > 0 ? entrada2hHeight : undefined, minHeight: 120 }}
+            <FiltroCard
+              title="FILTRO 2H"
+              cardId="filtro_2h"
+              rows={["2H", "COMO FUGIR DO INSTITUCIONAL", "VEM DE CIMA", "VEM DE BAIXO", "", ""]}
             />
-            <div
-              className="rounded-2xl border border-[#4a4a4a] bg-black p-5 shadow-sm"
-              style={{ height: entrada2hHeight > 0 ? entrada2hHeight : undefined, minHeight: 120 }}
+            <FiltroCard
+              title="FILTRO 4H"
+              cardId="filtro_4h"
+              rows={["4H", "OLHAR O GBP USD", "COMPRA", "VENDA", "", ""]}
             />
           </div>
         </section>
