@@ -722,6 +722,10 @@ function Index({ onLogout }: { onLogout: () => void }) {
               className="rounded-2xl border border-[#4a4a4a] bg-black p-5 shadow-sm"
               style={{ height: entrada2hHeight > 0 ? entrada2hHeight : undefined, minHeight: 120 }}
             />
+            <div
+              className="rounded-2xl border border-[#4a4a4a] bg-black p-5 shadow-sm"
+              style={{ height: entrada2hHeight > 0 ? entrada2hHeight : undefined, minHeight: 120 }}
+            />
           </div>
         </section>
 
