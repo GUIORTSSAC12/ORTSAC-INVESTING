@@ -692,6 +692,8 @@ function Index({ onLogout }: { onLogout: () => void }) {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <EntradaCard title="ENTRADAS 2H" />
             <EntradaCard title="ENTRADAS 4H" />
+            {/* Novo card vazio — 3º item: vai para a próxima linha, coluna esquerda, mesma largura e altura */}
+            <div className="rounded-2xl border border-[#4a4a4a] bg-black p-5 shadow-sm min-h-[120px]" />
           </div>
 
           <div className="space-y-4">
@@ -703,12 +705,6 @@ function Index({ onLogout }: { onLogout: () => void }) {
           </div>
         </section>
 
-        {/* Novo card — mesma estrutura de grid do ENTRADAS 2H, só visível com scroll */}
-        <div className="mt-6 pb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="rounded-2xl border border-[#4a4a4a] bg-black min-h-[120px]" />
-          </div>
-        </div>
       </div>
     </div>
   );
