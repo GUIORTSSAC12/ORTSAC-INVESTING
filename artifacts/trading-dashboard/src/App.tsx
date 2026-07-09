@@ -649,6 +649,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
                 height: "100%",
                 objectFit: "cover",
                 objectPosition: "center center",
+                transform: "scale(0.85)",
                 opacity: 0.75,
                 zIndex: 0,
                 border: "none",
