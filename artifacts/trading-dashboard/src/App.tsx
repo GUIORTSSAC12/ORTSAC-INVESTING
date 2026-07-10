@@ -224,6 +224,47 @@ function computeATR14(klines: Kline[]): number | null {
   return Number.isFinite(last) ? last : null;
 }
 
+// ─── SWING HIGH / LOW DETECTION ────────────────────────────────────────────
+// lookback: número de candles fechados de cada lado necessários para confirmar o swing
+// Um swing high é um candle cujo HIGH > todos os `lookback` vizinhos de cada lado.
+// Um swing low  é um candle cujo LOW  < todos os `lookback` vizinhos de cada lado.
+// Invalida pontos onde um candle posterior FECHOU além do nível (rompimento confirmado).
+type SwingPoint = { price: number; time: number };
+
+function detectSwingPoints(
+  klines: Kline[],
+  lookback = 2,
+): { highs: SwingPoint[]; lows: SwingPoint[] } {
+  const closed = klines.slice(0, -1); // exclui vela em formação
+  const highs: SwingPoint[] = [];
+  const lows: SwingPoint[] = [];
+
+  for (let i = lookback; i < closed.length - lookback; i++) {
+    const k = closed[i];
+    let isHigh = true;
+    let isLow = true;
+    for (let j = i - lookback; j <= i + lookback; j++) {
+      if (j === i) continue;
+      if (closed[j].high >= k.high) isHigh = false;
+      if (closed[j].low <= k.low) isLow = false;
+    }
+    if (isHigh) highs.push({ price: k.high, time: k.time });
+    if (isLow) lows.push({ price: k.low, time: k.time });
+  }
+
+  // Remove pontos rompidos (close subsequente ultrapassou o nível)
+  const validHighs = highs.filter(({ price, time }) => {
+    const idx = closed.findIndex((k) => k.time === time);
+    return idx < 0 || !closed.slice(idx + 1).some((k) => k.close > price);
+  });
+  const validLows = lows.filter(({ price, time }) => {
+    const idx = closed.findIndex((k) => k.time === time);
+    return idx < 0 || !closed.slice(idx + 1).some((k) => k.close < price);
+  });
+
+  return { highs: validHighs, lows: validLows };
+}
+
 // klines = all candles including forming; closedKlines = forming candle excluded (for ATR)
 function processTF(klines: Kline[], closedKlines: Kline[]): TFData {
   const closes = klines.map((k) => k.close);
@@ -345,6 +386,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
   const [paused, setPaused] = useState(false);
   const [gbpUsdPrice, setGbpUsdPrice] = useState<number | null>(null);
   const [gbpUsd4hKlines, setGbpUsd4hKlines] = useState<Kline[]>([]);
+  const [raw4hKlines, setRaw4hKlines] = useState<Kline[]>([]);
   const entrada2hRef = useRef<HTMLDivElement>(null);
   const [entrada2hHeight, setEntrada2hHeight] = useState(0);
 
@@ -422,7 +464,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
 
     const fetchKlines = async (
       interval: "2h" | "4h",
-    ): Promise<{ data: TFData | null; status: string | null }> => {
+    ): Promise<{ data: TFData | null; klines: Kline[]; status: string | null }> => {
       try {
         const r = await fetch(
           `/api/klines?symbol=${SYMBOL}&interval=${interval}&limit=500`,
@@ -430,7 +472,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
         );
         const j = await r.json();
         if (j?.code && j.code !== 0) {
-          return { data: null, status: `Mercado pausado (${j.code})` };
+          return { data: null, klines: [], status: `Mercado pausado (${j.code})` };
         }
         const arr = (j?.data ?? []) as Array<{
           open: string;
@@ -440,7 +482,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
           time: number;
         }>;
         if (!arr.length) {
-          return { data: null, status: "Sem candles disponíveis" };
+          return { data: null, klines: [], status: "Sem candles disponíveis" };
         }
         const allKs: Kline[] = arr
           .map((k) => ({
@@ -455,10 +497,9 @@ function Index({ onLogout }: { onLogout: () => void }) {
         // EMA inclui vela em formação (close = preço live); ATR usa só fechadas
         const closedKs = allKs.slice(0, -1);
 
-
-        return { data: processTF(allKs, closedKs), status: null };
+        return { data: processTF(allKs, closedKs), klines: allKs, status: null };
       } catch (e) {
-        return { data: null, status: "Erro de rede" };
+        return { data: null, klines: [], status: "Erro de rede" };
       }
     };
 
@@ -474,6 +515,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
       }
       if (b.data) {
         setTf4h(b.data);
+        if (b.klines.length) setRaw4hKlines(b.klines);
       } else {
         setTf4h((prev) =>
           prev ? { ...prev, stale: true } : { mas: null, atr14: null, stale: true },
@@ -634,6 +676,18 @@ function Index({ onLogout }: { onLogout: () => void }) {
 
   const gbpUsdCandle1 = findCandleByOpenUTCHour(gbpUsd4hKlines, gbpUsdC1OpenUTC);
   const gbpUsdCandle2 = findCandleByOpenUTCHour(gbpUsd4hKlines, gbpUsdC2OpenUTC);
+
+  // ─── TOPOS / FUNDOS — swing points do 4H GBP/JPY ────────────────────────
+  const { highs: swingHighs, lows: swingLows } =
+    raw4hKlines.length >= 5 ? detectSwingPoints(raw4hKlines) : { highs: [], lows: [] };
+  const currentPrice = data?.price ?? 0;
+  const MAX_SWINGS = 5;
+  const topos = [...swingHighs]
+    .sort((a, b) => Math.abs(a.price - currentPrice) - Math.abs(b.price - currentPrice))
+    .slice(0, MAX_SWINGS);
+  const fundos = [...swingLows]
+    .sort((a, b) => Math.abs(a.price - currentPrice) - Math.abs(b.price - currentPrice))
+    .slice(0, MAX_SWINGS);
 
   return (
     <div className="min-h-screen bg-black text-foreground font-mono">
@@ -844,11 +898,37 @@ function Index({ onLogout }: { onLogout: () => void }) {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="rounded-2xl border border-[#4a4a4a] bg-black p-5 shadow-sm text-center">
-                <div className="text-xs font-semibold uppercase tracking-wider">
+              <div className="rounded-2xl border border-[#4a4a4a] bg-black p-3 shadow-sm flex flex-col gap-1.5">
+                <div className="text-xs font-semibold uppercase tracking-wider text-center">
                   <span className="text-rose-400">Topos</span>
                   <span className="text-[#4a4a4a]">/</span>
                   <span className="text-blue-400">Fundos</span>
+                </div>
+                <div className="grid grid-cols-2 gap-x-2 text-center">
+                  {/* Topos */}
+                  <div className="flex flex-col gap-0.5">
+                    {topos.length === 0 ? (
+                      <span className="text-[10px] text-muted-foreground">—</span>
+                    ) : (
+                      topos.map((t) => (
+                        <span key={t.time} className="text-[11px] font-bold tabular-nums text-rose-400 leading-tight">
+                          {t.price.toFixed(2)}
+                        </span>
+                      ))
+                    )}
+                  </div>
+                  {/* Fundos */}
+                  <div className="flex flex-col gap-0.5">
+                    {fundos.length === 0 ? (
+                      <span className="text-[10px] text-muted-foreground">—</span>
+                    ) : (
+                      fundos.map((f) => (
+                        <span key={f.time} className="text-[11px] font-bold tabular-nums text-blue-400 leading-tight">
+                          {f.price.toFixed(2)}
+                        </span>
+                      ))
+                    )}
+                  </div>
                 </div>
               </div>
               {/* FILTRO GBP/USD */}
