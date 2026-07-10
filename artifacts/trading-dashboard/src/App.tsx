@@ -844,7 +844,13 @@ function Index({ onLogout }: { onLogout: () => void }) {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <CloseInCard title="2H FECHA EM" value={closeIn2h} />
+              <div className="rounded-2xl border border-[#4a4a4a] bg-black p-5 shadow-sm text-center">
+                <div className="text-xs font-semibold uppercase tracking-wider">
+                  <span className="text-rose-400">Topos</span>
+                  <span className="text-[#4a4a4a]">/</span>
+                  <span className="text-blue-400">Fundos</span>
+                </div>
+              </div>
               {/* FILTRO GBP/USD */}
               <div className="rounded-2xl border border-[#4a4a4a] bg-black p-3 shadow-sm flex flex-col">
                 <div className="text-xs font-bold text-center tracking-widest text-blue-400 mb-2">
