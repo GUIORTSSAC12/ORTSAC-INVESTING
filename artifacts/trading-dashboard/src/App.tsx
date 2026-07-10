@@ -343,6 +343,8 @@ function Index({ onLogout }: { onLogout: () => void }) {
   const [tf2h, setTf2h] = useState<TFData | null>(null);
   const [tf4h, setTf4h] = useState<TFData | null>(null);
   const [paused, setPaused] = useState(false);
+  const [gbpUsdPrice, setGbpUsdPrice] = useState<number | null>(null);
+  const [gbpUsd4hKlines, setGbpUsd4hKlines] = useState<Kline[]>([]);
   const entrada2hRef = useRef<HTMLDivElement>(null);
   const [entrada2hHeight, setEntrada2hHeight] = useState(0);
 
@@ -480,9 +482,39 @@ function Index({ onLogout }: { onLogout: () => void }) {
       return { ok: Boolean(a.data && b.data) };
     };
 
+    const fetchGbpUsd = async () => {
+      try {
+        const [tickerRes, klinesRes] = await Promise.all([
+          fetch(`/api/ticker?symbol=NCFXGBP2USD-USDT`, { cache: "no-store" }),
+          fetch(`/api/klines?symbol=NCFXGBP2USD-USDT&interval=4h&limit=20`, { cache: "no-store" }),
+        ]);
+        const [tickerJson, klinesJson] = await Promise.all([tickerRes.json(), klinesRes.json()]);
+        if (!cancelled && tickerJson?.data?.lastPrice) {
+          setGbpUsdPrice(Number(tickerJson.data.lastPrice));
+        }
+        const arr = (klinesJson?.data ?? []) as Array<{
+          open: string; high: string; low: string; close: string; time: number;
+        }>;
+        if (!cancelled && arr.length) {
+          setGbpUsd4hKlines(
+            arr.map((k) => ({
+              open: Number(k.open),
+              high: Number(k.high),
+              low: Number(k.low),
+              close: Number(k.close),
+              time: Number(k.time),
+            })),
+          );
+        }
+      } catch {
+        /* keep previous */
+      }
+    };
+
     const runCycle = async () => {
       const [tickerOk, tfRes] = await Promise.all([fetchTicker(), fetchTFs()]);
       fetchMatrix();
+      fetchGbpUsd();
       if (cancelled) return;
       const healthy = tickerOk && tfRes.ok;
       setPaused(!healthy);
@@ -585,6 +617,30 @@ function Index({ onLogout }: { onLogout: () => void }) {
 
   const closeIn2h = fmtCountdown(nextCloseMs(2));
   const closeIn4h = fmtCountdown(nextCloseMs(4));
+
+  // ─── FILTRO GBP/USD — seleção de candles 4H por fuso ────────────────────
+  // UTC 0:  Candle 1 abre às 08:00 Londres (= 08:00 UTC), Candle 2 às 12:00
+  // UTC+1:  Candle 1 abre às 05:00 Londres (= 04:00 UTC), Candle 2 às 09:00 (= 08:00 UTC)
+  const gbpUsdC1OpenUTC = utcOffset === 0 ? 8 : 4;
+  const gbpUsdC2OpenUTC = utcOffset === 0 ? 12 : 8;
+
+  const findCandleByOpenUTCHour = (klines: Kline[], utcHour: number): Kline | null => {
+    if (!now) return null;
+    return (
+      klines.find((k) => {
+        const d = new Date(k.time);
+        return (
+          d.getUTCHours() === utcHour &&
+          d.getUTCDate() === now.getUTCDate() &&
+          d.getUTCMonth() === now.getUTCMonth() &&
+          d.getUTCFullYear() === now.getUTCFullYear()
+        );
+      }) ?? null
+    );
+  };
+
+  const gbpUsdCandle1 = findCandleByOpenUTCHour(gbpUsd4hKlines, gbpUsdC1OpenUTC);
+  const gbpUsdCandle2 = findCandleByOpenUTCHour(gbpUsd4hKlines, gbpUsdC2OpenUTC);
 
   return (
     <div className="min-h-screen bg-black text-foreground font-mono">
@@ -796,7 +852,39 @@ function Index({ onLogout }: { onLogout: () => void }) {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <CloseInCard title="2H FECHA EM" value={closeIn2h} />
-              <CloseInCard title="4H FECHA EM" value={closeIn4h} />
+              {/* FILTRO GBP/USD */}
+              <div className="rounded-2xl border border-[#4a4a4a] bg-black p-3 shadow-sm flex flex-col">
+                <div className="text-xs font-bold text-center tracking-widest text-cyan-400 mb-2">
+                  FILTRO GBP/USD
+                </div>
+                <div className="flex flex-1 items-center gap-3">
+                  {/* Preço atual */}
+                  <div className="flex-shrink-0 flex items-center justify-center">
+                    <span className="text-2xl font-bold tabular-nums text-emerald-400 leading-none">
+                      {gbpUsdPrice != null ? gbpUsdPrice.toFixed(3) : "---"}
+                    </span>
+                  </div>
+                  {/* Candle 1 e 2 */}
+                  <div className="flex-1 grid grid-cols-2 gap-1 text-center">
+                    {[
+                      { label: "Candle 1", candle: gbpUsdCandle1 },
+                      { label: "Candle 2", candle: gbpUsdCandle2 },
+                    ].map(({ label, candle }) => (
+                      <div key={label}>
+                        <div className="text-[10px] font-semibold text-cyan-400 leading-tight">{label}</div>
+                        <div className="text-[9px] text-cyan-300 leading-tight mt-0.5">Máxima</div>
+                        <div className="text-xs font-bold tabular-nums text-blue-400 leading-tight">
+                          {candle ? candle.high.toFixed(3) : "---"}
+                        </div>
+                        <div className="text-[9px] text-cyan-300 leading-tight mt-0.5">Mínima</div>
+                        <div className="text-xs font-bold tabular-nums text-rose-400 leading-tight">
+                          {candle ? candle.low.toFixed(3) : "---"}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </section>
