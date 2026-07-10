@@ -847,7 +847,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
               <CloseInCard title="2H FECHA EM" value={closeIn2h} />
               {/* FILTRO GBP/USD */}
               <div className="rounded-2xl border border-[#4a4a4a] bg-black p-3 shadow-sm flex flex-col">
-                <div className="text-xs font-bold text-center tracking-widest text-cyan-400 mb-2">
+                <div className="text-xs font-bold text-center tracking-widest text-blue-400 mb-2">
                   FILTRO GBP/USD
                 </div>
                 <div className="flex flex-1 items-center gap-3">
@@ -864,12 +864,12 @@ function Index({ onLogout }: { onLogout: () => void }) {
                       { label: "Candle 2", candle: gbpUsdCandle2 },
                     ].map(({ label, candle }) => (
                       <div key={label}>
-                        <div className="text-xs font-semibold text-cyan-400 leading-tight">{label}</div>
-                        <div className="text-xs text-cyan-300 leading-tight mt-0.5">Máxima</div>
+                        <div className="text-xs font-semibold text-blue-400 leading-tight">{label}</div>
+                        <div className="text-xs text-white leading-tight mt-0.5">Máxima</div>
                         <div className="text-xs font-bold tabular-nums text-blue-400 leading-tight">
                           {candle ? candle.high.toFixed(3) : "---"}
                         </div>
-                        <div className="text-xs text-cyan-300 leading-tight mt-0.5">Mínima</div>
+                        <div className="text-xs text-white leading-tight mt-0.5">Mínima</div>
                         <div className="text-xs font-bold tabular-nums text-rose-400 leading-tight">
                           {candle ? candle.low.toFixed(3) : "---"}
                         </div>
