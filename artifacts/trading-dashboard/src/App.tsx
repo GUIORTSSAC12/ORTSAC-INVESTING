@@ -625,18 +625,11 @@ function Index({ onLogout }: { onLogout: () => void }) {
   const gbpUsdC2OpenUTC = utcOffset === 0 ? 12 : 8;
 
   const findCandleByOpenUTCHour = (klines: Kline[], utcHour: number): Kline | null => {
-    if (!now) return null;
-    return (
-      klines.find((k) => {
-        const d = new Date(k.time);
-        return (
-          d.getUTCHours() === utcHour &&
-          d.getUTCDate() === now.getUTCDate() &&
-          d.getUTCMonth() === now.getUTCMonth() &&
-          d.getUTCFullYear() === now.getUTCFullYear()
-        );
-      }) ?? null
-    );
+    // Find the most recent closed candle that opened at the target UTC hour.
+    // We do NOT filter by date because at e.g. 01:27 London UTC+1 (= 00:27 UTC),
+    // the target candles (04:00 and 08:00 UTC) belong to the previous calendar day.
+    const sorted = [...klines].sort((a, b) => b.time - a.time);
+    return sorted.find((k) => new Date(k.time).getUTCHours() === utcHour) ?? null;
   };
 
   const gbpUsdCandle1 = findCandleByOpenUTCHour(gbpUsd4hKlines, gbpUsdC1OpenUTC);
@@ -871,12 +864,12 @@ function Index({ onLogout }: { onLogout: () => void }) {
                       { label: "Candle 2", candle: gbpUsdCandle2 },
                     ].map(({ label, candle }) => (
                       <div key={label}>
-                        <div className="text-[10px] font-semibold text-cyan-400 leading-tight">{label}</div>
-                        <div className="text-[9px] text-cyan-300 leading-tight mt-0.5">Máxima</div>
+                        <div className="text-xs font-semibold text-cyan-400 leading-tight">{label}</div>
+                        <div className="text-xs text-cyan-300 leading-tight mt-0.5">Máxima</div>
                         <div className="text-xs font-bold tabular-nums text-blue-400 leading-tight">
                           {candle ? candle.high.toFixed(3) : "---"}
                         </div>
-                        <div className="text-[9px] text-cyan-300 leading-tight mt-0.5">Mínima</div>
+                        <div className="text-xs text-cyan-300 leading-tight mt-0.5">Mínima</div>
                         <div className="text-xs font-bold tabular-nums text-rose-400 leading-tight">
                           {candle ? candle.low.toFixed(3) : "---"}
                         </div>
