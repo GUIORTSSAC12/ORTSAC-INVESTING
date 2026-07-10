@@ -535,6 +535,26 @@ function Index({ onLogout }: { onLogout: () => void }) {
 
   const marketOpen = !error && !paused;
 
+  // ─── REGRA GLOBAL: ALINHAMENTO DE ABERTURA DE VELAS ────────────────────────
+  // LONDRES UTC 0  → velas 2H/4H abrem em horas PARES  (00,02,04,06,08,10,...)
+  // LONDRES UTC +1 → velas 2H/4H abrem em horas ÍMPARES (01,03,05,07,09,11,...)
+  // isCandleOpenHour(londonHour, cycle) → true quando aquela hora de Londres
+  // é um ponto de abertura de vela, respeitando o utcOffset ativo.
+  const isCandleOpenHour = (londonHour: number, cycle: number): boolean =>
+    ((londonHour - utcOffset) % cycle + cycle) % cycle === 0;
+
+  // Arrays com todos os horários de abertura de vela no dia (hora de Londres)
+  const candleOpenHours2h = Array.from({ length: 24 }, (_, h) => h).filter((h) =>
+    isCandleOpenHour(h, 2),
+  );
+  const candleOpenHours4h = Array.from({ length: 24 }, (_, h) => h).filter((h) =>
+    isCandleOpenHour(h, 4),
+  );
+
+  void isCandleOpenHour;
+  void candleOpenHours2h;
+  void candleOpenHours4h;
+
   const nextCloseMs = (cycle: number): number | null => {
     if (!now) return null;
     const londonMs = now.getTime() + utcOffset * 3600_000;
@@ -797,8 +817,8 @@ function Index({ onLogout }: { onLogout: () => void }) {
         </section>
 
         {/* Filtros — visível só com scroll */}
-        <section className="mt-6 pb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <section className="mt-6 pb-8">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <FiltroCard
               title="FILTRO 2H"
               cardId="filtro_2h"
@@ -809,6 +829,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
               cardId="filtro_4h"
               rows={["4H", "OLHAR O GBP USD", "COMPRA", "VENDA", "", ""]}
             />
+            <div className="rounded-2xl border border-[#4a4a4a] bg-black p-5 shadow-sm min-h-[200px]" />
           </div>
         </section>
 
