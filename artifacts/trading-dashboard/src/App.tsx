@@ -340,6 +340,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
   const entrada2hRef = useRef<HTMLDivElement>(null);
   const radarCardRef = useRef<HTMLDivElement>(null);
   const marketBannerRef = useRef<HTMLDivElement>(null);
+  const marketBannerWrapperRef = useRef<HTMLDivElement>(null);
   const macroVolatilityRef = useRef<HTMLDivElement>(null);
   const [marketBannerShift, setMarketBannerShift] = useState(0);
   const [entrada2hHeight, setEntrada2hHeight] = useState(0);
@@ -357,9 +358,15 @@ function Index({ onLogout }: { onLogout: () => void }) {
   useLayoutEffect(() => {
     const alignMarketBanner = () => {
       const macroBottom = macroVolatilityRef.current?.getBoundingClientRect().bottom;
-      const bannerBottom = marketBannerRef.current?.getBoundingClientRect().bottom;
-      if (macroBottom == null || bannerBottom == null) return;
-      setMarketBannerShift(Math.round(macroBottom - bannerBottom));
+      const banner = marketBannerRef.current;
+      const wrapper = marketBannerWrapperRef.current;
+      if (macroBottom == null || !banner || !wrapper) return;
+
+      const currentTransform = wrapper.style.transform;
+      wrapper.style.transform = "translateY(0px)";
+      const naturalBannerTop = banner.getBoundingClientRect().top;
+      wrapper.style.transform = currentTransform;
+      setMarketBannerShift(Math.round(macroBottom - naturalBannerTop));
     };
 
     alignMarketBanner();
@@ -756,6 +763,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
             </div>
 
             <div
+              ref={marketBannerWrapperRef}
               className="relative z-10 mt-6 shrink-0"
               style={{ transform: `translateY(${marketBannerShift}px)` }}
             >
