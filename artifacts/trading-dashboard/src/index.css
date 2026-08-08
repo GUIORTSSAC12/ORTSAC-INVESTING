@@ -79,40 +79,6 @@
   to   { transform: rotate(360deg); }
 }
 
-/* F11/fullscreen layout: keep the dashboard inside the visible viewport. */
-.dashboard-shell {
-  min-height: 100vh;
-}
-
-@media (display-mode: fullscreen), (max-height: 800px) and (min-width: 900px) {
-  .dashboard-shell,
-  .dashboard-shell:fullscreen {
-    height: 100vh;
-    max-height: 100vh;
-    min-height: 0;
-    overflow: hidden;
-  }
-
-  .dashboard-page {
-    height: 100%;
-    max-height: 100%;
-    overflow: hidden;
-  }
-}
-
-.dashboard-shell:fullscreen {
-  height: 100vh;
-  max-height: 100vh;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.dashboard-shell:fullscreen .dashboard-page {
-  height: 100%;
-  max-height: 100%;
-  overflow: hidden;
-}
-
 @layer base {
   * {
     @apply border-border;
