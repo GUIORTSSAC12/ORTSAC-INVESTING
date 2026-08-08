@@ -1,0 +1,1 @@
+- [Alinhamento entre cards](layout-alignment.md) — use o limite do container visualmente nomeado pelo usuário, não um sub-card interno, como referência de alinhamento.

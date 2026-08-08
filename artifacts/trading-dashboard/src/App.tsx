@@ -340,7 +340,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
   const entrada2hRef = useRef<HTMLDivElement>(null);
   const radarCardRef = useRef<HTMLDivElement>(null);
   const marketBannerRef = useRef<HTMLDivElement>(null);
-  const vixSubcardRef = useRef<HTMLDivElement>(null);
+  const macroVolatilityRef = useRef<HTMLDivElement>(null);
   const [marketBannerShift, setMarketBannerShift] = useState(0);
   const [entrada2hHeight, setEntrada2hHeight] = useState(0);
 
@@ -356,15 +356,15 @@ function Index({ onLogout }: { onLogout: () => void }) {
 
   useLayoutEffect(() => {
     const alignMarketBanner = () => {
-      const vixBottom = vixSubcardRef.current?.getBoundingClientRect().bottom;
-      const bannerTop = marketBannerRef.current?.getBoundingClientRect().top;
-      if (vixBottom == null || bannerTop == null) return;
-      setMarketBannerShift(Math.round(vixBottom - bannerTop));
+      const macroBottom = macroVolatilityRef.current?.getBoundingClientRect().bottom;
+      const bannerBottom = marketBannerRef.current?.getBoundingClientRect().bottom;
+      if (macroBottom == null || bannerBottom == null) return;
+      setMarketBannerShift(Math.round(macroBottom - bannerBottom));
     };
 
     alignMarketBanner();
     const resizeObserver = new ResizeObserver(alignMarketBanner);
-    if (vixSubcardRef.current) resizeObserver.observe(vixSubcardRef.current);
+    if (macroVolatilityRef.current) resizeObserver.observe(macroVolatilityRef.current);
     if (radarCardRef.current) resizeObserver.observe(radarCardRef.current);
     window.addEventListener("resize", alignMarketBanner);
     return () => {
@@ -768,7 +768,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
                vix={vix}
                loading={vixLoading}
                error={vixError}
-               vixSubcardRef={vixSubcardRef}
+               macroVolatilityRef={macroVolatilityRef}
              />
             <div className="grid grid-cols-2 gap-4">
               <CloseInCard title="2H FECHA EM" value={closeIn2h} />
@@ -934,12 +934,12 @@ function MacroVolatilityCard({
   vix,
   loading,
   error,
-  vixSubcardRef,
+  macroVolatilityRef,
 }: {
   vix: number | null;
   loading: boolean;
   error: string | null;
-  vixSubcardRef?: React.RefObject<HTMLDivElement | null>;
+  macroVolatilityRef?: React.RefObject<HTMLDivElement | null>;
 }) {
   const diagnostic =
     vix == null
@@ -970,16 +970,16 @@ function MacroVolatilityCard({
           : "bg-rose-500";
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-[#4a4a4a] bg-black p-5 shadow-sm">
+    <div
+      ref={macroVolatilityRef}
+      className="relative overflow-hidden rounded-2xl border border-[#4a4a4a] bg-black p-5 shadow-sm"
+    >
       <div className="relative z-10 text-center text-base font-bold tracking-widest text-foreground">
         VOLATILIDADE MACRO
       </div>
 
       <div className="relative z-10 mt-5 grid grid-cols-1 items-stretch gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(7rem,0.72fr)_minmax(0,1fr)]">
-        <div
-          ref={vixSubcardRef}
-          className="rounded-2xl border border-[#4a4a4a] bg-[#0b0d12] p-4"
-        >
+        <div className="rounded-2xl border border-[#4a4a4a] bg-[#0b0d12] p-4">
           <div className="text-center text-base font-bold text-foreground">VIX (S&amp;P 500)</div>
           <div className="mt-3 text-center text-4xl font-bold tabular-nums text-emerald-400">
             {loading && vix == null ? "—" : vix != null ? vix.toFixed(2) : "—"}
