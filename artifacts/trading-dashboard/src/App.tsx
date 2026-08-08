@@ -682,7 +682,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
         <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div
             ref={radarCardRef}
-            className="dashboard-radar-short relative flex h-full flex-col overflow-hidden rounded-2xl border border-[#4a4a4a] bg-black p-8 shadow-sm"
+            className="relative flex h-full min-h-[360px] flex-col overflow-hidden rounded-2xl border border-[#4a4a4a] bg-black p-8 shadow-sm"
           >
             {/* Radar artwork occupies only the area above the fixed bottom banner. */}
             <div className="pointer-events-none absolute inset-0 bottom-[82px] overflow-hidden">
@@ -771,7 +771,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
             </div>
           </div>
 
-          <div className="dashboard-secondary-lift flex flex-col gap-6">
+          <div className="flex flex-col gap-6">
              <MacroVolatilityCard
                vix={vix}
                loading={vixLoading}

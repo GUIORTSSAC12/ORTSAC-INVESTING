@@ -89,20 +89,3 @@
     font-family: var(--app-font-mono);
   }
 }
-
-@media (min-width: 1024px) {
-  /*
-   * The lower edge of the first dashboard row follows the reference line
-   * from the desktop layout: the radar card is shortened by 3cm while the
-   * macro/countdown column is lifted by the same amount.
-   */
-  .dashboard-radar-short {
-    height: calc(100% - 3cm);
-    min-height: 0;
-    align-self: start;
-  }
-
-  .dashboard-secondary-lift {
-    transform: translateY(-3cm);
-  }
-}
