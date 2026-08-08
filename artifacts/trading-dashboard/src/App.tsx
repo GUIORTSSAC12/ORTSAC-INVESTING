@@ -581,8 +581,8 @@ function Index({ onLogout }: { onLogout: () => void }) {
   const closeIn4h = fmtCountdown(nextCloseMs(4));
 
   return (
-    <div className="min-h-screen bg-black text-foreground font-mono">
-      <div className="mx-auto w-full max-w-[1600px] px-[clamp(0.75rem,2vw,2rem)] pb-[clamp(1rem,2.5vh,2.5rem)] pt-[clamp(2.5rem,6vh,5rem)]">
+    <div className="dashboard-shell min-h-screen bg-black text-foreground font-mono">
+      <div className="dashboard-page mx-auto w-full max-w-[1600px] px-[clamp(0.75rem,2vw,2rem)] pb-[clamp(1rem,2.5vh,2.5rem)] pt-[clamp(2.5rem,6vh,5rem)]">
         <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="text-base font-semibold tracking-tight">Trading Dashboard</h1>
@@ -649,17 +649,17 @@ function Index({ onLogout }: { onLogout: () => void }) {
           </div>
         </header>
 
-        <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <div className="relative flex h-full min-h-[360px] flex-col overflow-hidden rounded-2xl border border-[#4a4a4a] bg-black p-8 shadow-sm">
+        <section className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
+          <div className="relative flex min-h-[320px] flex-col overflow-hidden rounded-2xl border border-[#4a4a4a] bg-black px-8 pb-4 pt-8 shadow-sm">
             {/* Radar artwork occupies only the area above the fixed bottom banner. */}
-            <div className="pointer-events-none absolute inset-0 bottom-[82px] overflow-hidden">
+            <div className="pointer-events-none absolute inset-0 bottom-[64px] overflow-hidden">
               <img
                 src={radarBg}
                 alt=""
                 aria-hidden="true"
                 className="absolute inset-0 h-full w-full object-contain object-center"
                 style={{
-                  transform: "scale(1.15)",
+                  transform: "scale(1.28)",
                   opacity: 0.75,
                   border: "none",
                   outline: "none",
@@ -729,7 +729,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
               </div>
             </div>
 
-            <div className="relative z-10 mt-6 shrink-0">
+            <div className="relative z-10 mt-3 shrink-0">
               <MarketStatusBanner open={marketOpen} />
             </div>
           </div>
