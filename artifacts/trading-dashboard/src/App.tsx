@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ThumbsDown, ThumbsUp, Lock, User, LogOut, Eye, EyeOff, ChevronDown } from "lucide-react";
 import radarBg from "./assets/radar-bg.jpeg";
 import royalLondon from "./assets/royal-london.jpeg";
@@ -338,6 +338,10 @@ function Index({ onLogout }: { onLogout: () => void }) {
   const [tf4h, setTf4h] = useState<TFData | null>(null);
   const [paused, setPaused] = useState(false);
   const entrada2hRef = useRef<HTMLDivElement>(null);
+  const radarCardRef = useRef<HTMLDivElement>(null);
+  const marketBannerRef = useRef<HTMLDivElement>(null);
+  const vixSubcardRef = useRef<HTMLDivElement>(null);
+  const [marketBannerShift, setMarketBannerShift] = useState(0);
   const [entrada2hHeight, setEntrada2hHeight] = useState(0);
 
   useEffect(() => {
@@ -348,6 +352,25 @@ function Index({ onLogout }: { onLogout: () => void }) {
     });
     ro.observe(el);
     return () => ro.disconnect();
+  }, []);
+
+  useLayoutEffect(() => {
+    const alignMarketBanner = () => {
+      const vixBottom = vixSubcardRef.current?.getBoundingClientRect().bottom;
+      const bannerTop = marketBannerRef.current?.getBoundingClientRect().top;
+      if (vixBottom == null || bannerTop == null) return;
+      setMarketBannerShift(Math.round(vixBottom - bannerTop));
+    };
+
+    alignMarketBanner();
+    const resizeObserver = new ResizeObserver(alignMarketBanner);
+    if (vixSubcardRef.current) resizeObserver.observe(vixSubcardRef.current);
+    if (radarCardRef.current) resizeObserver.observe(radarCardRef.current);
+    window.addEventListener("resize", alignMarketBanner);
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", alignMarketBanner);
+    };
   }, []);
 
   useEffect(() => {
@@ -650,7 +673,10 @@ function Index({ onLogout }: { onLogout: () => void }) {
         </header>
 
         <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <div className="relative flex h-full min-h-[360px] flex-col overflow-hidden rounded-2xl border border-[#4a4a4a] bg-black p-8 shadow-sm">
+          <div
+            ref={radarCardRef}
+            className="relative flex h-full min-h-[360px] flex-col overflow-hidden rounded-2xl border border-[#4a4a4a] bg-black p-8 shadow-sm"
+          >
             {/* Radar artwork occupies only the area above the fixed bottom banner. */}
             <div className="pointer-events-none absolute inset-0 bottom-[82px] overflow-hidden">
               <img
@@ -729,13 +755,21 @@ function Index({ onLogout }: { onLogout: () => void }) {
               </div>
             </div>
 
-            <div className="relative z-10 mt-6 shrink-0">
-              <MarketStatusBanner open={marketOpen} />
+            <div
+              className="relative z-10 mt-6 shrink-0"
+              style={{ transform: `translateY(${marketBannerShift}px)` }}
+            >
+              <MarketStatusBanner open={marketOpen} bannerRef={marketBannerRef} />
             </div>
           </div>
 
           <div className="flex flex-col gap-6">
-             <MacroVolatilityCard vix={vix} loading={vixLoading} error={vixError} />
+             <MacroVolatilityCard
+               vix={vix}
+               loading={vixLoading}
+               error={vixError}
+               vixSubcardRef={vixSubcardRef}
+             />
             <div className="grid grid-cols-2 gap-4">
               <CloseInCard title="2H FECHA EM" value={closeIn2h} />
               <CloseInCard title="4H FECHA EM" value={closeIn4h} />
@@ -863,11 +897,18 @@ function AtrCard({ title, atr }: { title: string; atr: number | null }) {
   );
 }
 
-function MarketStatusBanner({ open }: { open: boolean }) {
+function MarketStatusBanner({
+  open,
+  bannerRef,
+}: {
+  open: boolean;
+  bannerRef?: React.RefObject<HTMLDivElement | null>;
+}) {
   const label = open ? "MERCADO ABERTO" : "MERCADO FECHADO";
   const Icon = open ? ThumbsUp : ThumbsDown;
   return (
     <div
+      ref={bannerRef}
       className={`mt-4 flex items-center justify-center gap-3 rounded-xl border px-4 py-3 ${
         open
           ? "border-emerald-500/60 bg-emerald-500/5 text-emerald-400"
@@ -893,10 +934,12 @@ function MacroVolatilityCard({
   vix,
   loading,
   error,
+  vixSubcardRef,
 }: {
   vix: number | null;
   loading: boolean;
   error: string | null;
+  vixSubcardRef?: React.RefObject<HTMLDivElement | null>;
 }) {
   const diagnostic =
     vix == null
@@ -933,7 +976,10 @@ function MacroVolatilityCard({
       </div>
 
       <div className="relative z-10 mt-5 grid grid-cols-1 items-stretch gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(7rem,0.72fr)_minmax(0,1fr)]">
-        <div className="rounded-2xl border border-[#4a4a4a] bg-[#0b0d12] p-4">
+        <div
+          ref={vixSubcardRef}
+          className="rounded-2xl border border-[#4a4a4a] bg-[#0b0d12] p-4"
+        >
           <div className="text-center text-base font-bold text-foreground">VIX (S&amp;P 500)</div>
           <div className="mt-3 text-center text-4xl font-bold tabular-nums text-emerald-400">
             {loading && vix == null ? "—" : vix != null ? vix.toFixed(2) : "—"}
