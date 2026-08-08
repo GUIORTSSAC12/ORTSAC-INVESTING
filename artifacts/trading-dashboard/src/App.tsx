@@ -582,7 +582,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
 
   return (
     <div className="min-h-screen bg-black text-foreground font-mono">
-      <div className="mx-auto w-full max-w-[1600px] px-[clamp(0.75rem,2vw,2rem)] py-[clamp(1rem,2.5vh,2.5rem)]">
+      <div className="mx-auto w-full max-w-[1600px] px-[clamp(0.75rem,2vw,2rem)] pb-[clamp(1rem,2.5vh,2.5rem)] pt-[clamp(2.5rem,6vh,5rem)]">
         <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="text-base font-semibold tracking-tight">Trading Dashboard</h1>
@@ -650,92 +650,86 @@ function Index({ onLogout }: { onLogout: () => void }) {
         </header>
 
         <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <div className="relative overflow-hidden rounded-2xl border border-[#4a4a4a] bg-black p-8 shadow-sm">
-            {/* Radar static background */}
-            <img
-              src={radarBg}
-              alt=""
-              aria-hidden="true"
-              style={{
-                position: "absolute",
-                inset: 0,
-                width: "100%",
-                height: "100%",
-                objectFit: "contain",
-                objectPosition: "center center",
-                transform: "scale(1.15)",
-                opacity: 0.75,
-                zIndex: 0,
-                border: "none",
-                outline: "none",
-                pointerEvents: "none",
-              }}
-            />
+          <div className="relative flex h-full min-h-[360px] flex-col overflow-hidden rounded-2xl border border-[#4a4a4a] bg-black p-8 shadow-sm">
+            {/* Radar artwork occupies only the area above the fixed bottom banner. */}
+            <div className="pointer-events-none absolute inset-0 bottom-[82px] overflow-hidden">
+              <img
+                src={radarBg}
+                alt=""
+                aria-hidden="true"
+                className="absolute inset-0 h-full w-full object-contain object-center"
+                style={{
+                  transform: "scale(1.15)",
+                  opacity: 0.75,
+                  border: "none",
+                  outline: "none",
+                }}
+              />
 
-            {/* Radar sweep beam — rotates clockwise, pivot fixed at 50% 50% (center of card = center of radar) */}
-            <div
-              aria-hidden="true"
-              style={{
-                position: "absolute",
-                inset: 0,
-                zIndex: 1,
-                pointerEvents: "none",
-                overflow: "hidden",
-                borderRadius: "inherit",
-                transformOrigin: "50% 50%",
-                animation: "radar-sweep 5s linear infinite",
-                background:
-                  "conic-gradient(from 0deg at 50% 50%, transparent 0deg, transparent 315deg, rgba(0,220,255,0.03) 328deg, rgba(0,220,255,0.13) 342deg, rgba(0,220,255,0.48) 356deg, rgba(0,220,255,0.9) 360deg)",
-                mixBlendMode: "screen",
-              }}
-            />
-            <div className="relative z-10 flex items-baseline justify-between">
-              <div className="text-base font-semibold">
-                <span className="text-emerald-400">{DISPLAY_SYMBOL}</span>{" "}
-                <span className="text-muted-foreground">PERPETUAL</span>
-              </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span
-                  className={`inline-block h-2 w-2 rounded-full ${
-                    error ? "bg-rose-500" : "bg-emerald-500 animate-pulse"
-                  }`}
-                />
-                {error ? "Desconectado" : "Ao vivo"}
-              </div>
+              {/* Radar sweep beam — its pivot follows the reserved artwork area. */}
+              <div
+                aria-hidden="true"
+                className="absolute inset-0 overflow-hidden"
+                style={{
+                  borderRadius: "inherit",
+                  transformOrigin: "50% 50%",
+                  animation: "radar-sweep 5s linear infinite",
+                  background:
+                    "conic-gradient(from 0deg at 50% 50%, transparent 0deg, transparent 315deg, rgba(0,220,255,0.03) 328deg, rgba(0,220,255,0.13) 342deg, rgba(0,220,255,0.48) 356deg, rgba(0,220,255,0.9) 360deg)",
+                  mixBlendMode: "screen",
+                }}
+              />
             </div>
 
-            <div className="relative z-10 mt-6 flex items-start justify-between">
-              <div>
-                {loading && !data ? (
-                  <div className="h-12 w-48 animate-pulse rounded-md bg-muted" />
-                ) : (
-                  <div
-                    className={`font-bold tabular-nums transition-colors ${priceColor}`}
-                    style={{ fontSize: "40px", lineHeight: 1.1 }}
-                  >
-                    {data ? data.price.toFixed(3) : "—"}
-                  </div>
-                )}
-                {data && (
-                  <div
-                    className={`mt-1 text-base font-semibold tabular-nums ${
-                      data.changePct >= 0 ? "text-emerald-400" : "text-rose-400"
+            <div className="relative z-10 flex min-h-0 flex-1 flex-col">
+              <div className="flex items-baseline justify-between">
+                <div className="text-base font-semibold">
+                  <span className="text-emerald-400">{DISPLAY_SYMBOL}</span>{" "}
+                  <span className="text-muted-foreground">PERPETUAL</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span
+                    className={`inline-block h-2 w-2 rounded-full ${
+                      error ? "bg-rose-500" : "bg-emerald-500 animate-pulse"
                     }`}
-                  >
-                    {data.changePct >= 0 ? "+" : ""}
-                    {data.changePct.toFixed(2)}%
-                  </div>
-                )}
+                  />
+                  {error ? "Desconectado" : "Ao vivo"}
+                </div>
               </div>
-              <div className="text-right">
-                <div className="text-2xl font-bold tracking-wide">SPREAD</div>
-                <div className="mt-1 text-xl font-semibold tabular-nums text-foreground">
-                  {data ? spreadPips.toFixed(1) : "—"} pips
+
+              <div className="mt-6 flex flex-1 items-start justify-between">
+                <div>
+                  {loading && !data ? (
+                    <div className="h-12 w-48 animate-pulse rounded-md bg-muted" />
+                  ) : (
+                    <div
+                      className={`font-bold tabular-nums transition-colors ${priceColor}`}
+                      style={{ fontSize: "40px", lineHeight: 1.1 }}
+                    >
+                      {data ? data.price.toFixed(3) : "—"}
+                    </div>
+                  )}
+                  {data && (
+                    <div
+                      className={`mt-1 text-base font-semibold tabular-nums ${
+                        data.changePct >= 0 ? "text-emerald-400" : "text-rose-400"
+                      }`}
+                    >
+                      {data.changePct >= 0 ? "+" : ""}
+                      {data.changePct.toFixed(2)}%
+                    </div>
+                  )}
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-bold tracking-wide">SPREAD</div>
+                  <div className="mt-1 text-xl font-semibold tabular-nums text-foreground">
+                    {data ? spreadPips.toFixed(1) : "—"} pips
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="relative z-10 mt-24">
+            <div className="relative z-10 mt-6 shrink-0">
               <MarketStatusBanner open={marketOpen} />
             </div>
           </div>
@@ -918,7 +912,7 @@ function MacroVolatilityCard({
               text: "DIAGNÓSTICO OPERACIONAL: ATENÇÃO. Aumento de volatilidade macro detectado. Maior propensão a falsos rompimentos. Opere com gerenciamento rigoroso.",
             }
           : {
-              className: "border-rose-400/70 bg-rose-500 text-white",
+              className: "border-rose-400/70 bg-rose-500 text-black",
               text: "DIAGNÓSTICO OPERACIONAL: ALTO RISCO. Volatilidade extrema nos mercados macros. Movimentos atípicos e ruídos elevados. Recomendado reduzir a mão ou aguardar normalização.",
             };
 
