@@ -224,47 +224,6 @@ function computeATR14(klines: Kline[]): number | null {
   return Number.isFinite(last) ? last : null;
 }
 
-// ─── SWING HIGH / LOW DETECTION ────────────────────────────────────────────
-// lookback: número de candles fechados de cada lado necessários para confirmar o swing
-// Um swing high é um candle cujo HIGH > todos os `lookback` vizinhos de cada lado.
-// Um swing low  é um candle cujo LOW  < todos os `lookback` vizinhos de cada lado.
-// Invalida pontos onde um candle posterior FECHOU além do nível (rompimento confirmado).
-type SwingPoint = { price: number; time: number };
-
-function detectSwingPoints(
-  klines: Kline[],
-  lookback = 2,
-): { highs: SwingPoint[]; lows: SwingPoint[] } {
-  const closed = klines.slice(0, -1); // exclui vela em formação
-  const highs: SwingPoint[] = [];
-  const lows: SwingPoint[] = [];
-
-  for (let i = lookback; i < closed.length - lookback; i++) {
-    const k = closed[i];
-    let isHigh = true;
-    let isLow = true;
-    for (let j = i - lookback; j <= i + lookback; j++) {
-      if (j === i) continue;
-      if (closed[j].high >= k.high) isHigh = false;
-      if (closed[j].low <= k.low) isLow = false;
-    }
-    if (isHigh) highs.push({ price: k.high, time: k.time });
-    if (isLow) lows.push({ price: k.low, time: k.time });
-  }
-
-  // Remove pontos rompidos (close subsequente ultrapassou o nível)
-  const validHighs = highs.filter(({ price, time }) => {
-    const idx = closed.findIndex((k) => k.time === time);
-    return idx < 0 || !closed.slice(idx + 1).some((k) => k.close > price);
-  });
-  const validLows = lows.filter(({ price, time }) => {
-    const idx = closed.findIndex((k) => k.time === time);
-    return idx < 0 || !closed.slice(idx + 1).some((k) => k.close < price);
-  });
-
-  return { highs: validHighs, lows: validLows };
-}
-
 // klines = all candles including forming; closedKlines = forming candle excluded (for ATR)
 function processTF(klines: Kline[], closedKlines: Kline[]): TFData {
   const closes = klines.map((k) => k.close);
@@ -285,14 +244,6 @@ type TickerData = {
   changePct: number;
   ts: number;
 };
-
-type MatrixRow = { label: string; changePct: number };
-
-const MATRIX_SYMBOLS: { label: string; symbol: string; invert?: boolean }[] = [
-  { label: "GBP/USD", symbol: "NCFXGBP2USD-USDT" },
-  { label: "JPY/USD", symbol: "NCFXUSD2JPY-USDT", invert: true },
-  { label: "EUR/GBP", symbol: "NCFXEUR2GBP-USDT" },
-];
 
 function FiltroCard({ title, cardId, rows }: { title: string; cardId: string; rows: string[] }) {
   const [open, setOpen] = useState<boolean[]>(rows.map(() => false));
@@ -378,15 +329,14 @@ function Index({ onLogout }: { onLogout: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
-  const [matrix, setMatrix] = useState<MatrixRow[]>([]);
+  const [vix, setVix] = useState<number | null>(null);
+  const [vixLoading, setVixLoading] = useState(true);
+  const [vixError, setVixError] = useState<string | null>(null);
   const [utcOffset, setUtcOffset] = useState<0 | 1>(1);
   const [now, setNow] = useState<Date | null>(null);
   const [tf2h, setTf2h] = useState<TFData | null>(null);
   const [tf4h, setTf4h] = useState<TFData | null>(null);
   const [paused, setPaused] = useState(false);
-  const [gbpUsdPrice, setGbpUsdPrice] = useState<number | null>(null);
-  const [gbpUsd4hKlines, setGbpUsd4hKlines] = useState<Kline[]>([]);
-  const [raw4hKlines, setRaw4hKlines] = useState<Kline[]>([]);
   const entrada2hRef = useRef<HTMLDivElement>(null);
   const [entrada2hHeight, setEntrada2hHeight] = useState(0);
 
@@ -446,25 +396,29 @@ function Index({ onLogout }: { onLogout: () => void }) {
       }
     };
 
-    const fetchMatrix = async () => {
+    const fetchVix = async () => {
       try {
-        const results = await Promise.all(
-          MATRIX_SYMBOLS.map(async (m) => {
-            const r = await fetch(`/api/ticker?symbol=${m.symbol}`, { cache: "no-store" });
-            const j = await r.json();
-            const pct = Number(j?.data?.priceChangePercent ?? 0);
-            return { label: m.label, changePct: m.invert ? -pct : pct };
-          }),
-        );
-        if (!cancelled) setMatrix(results);
-      } catch {
-        /* keep previous */
+        const r = await fetch("/api/vix", { cache: "no-store" });
+        const j = await r.json();
+        if (!r.ok || !Number.isFinite(Number(j?.value))) {
+          throw new Error(j?.error || "VIX indisponível");
+        }
+        if (!cancelled) {
+          setVix(Number(j.value));
+          setVixError(null);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setVixError(e instanceof Error ? e.message : "VIX indisponível");
+        }
+      } finally {
+        if (!cancelled) setVixLoading(false);
       }
     };
 
     const fetchKlines = async (
       interval: "2h" | "4h",
-    ): Promise<{ data: TFData | null; klines: Kline[]; status: string | null }> => {
+    ): Promise<{ data: TFData | null; status: string | null }> => {
       try {
         const r = await fetch(
           `/api/klines?symbol=${SYMBOL}&interval=${interval}&limit=500`,
@@ -472,7 +426,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
         );
         const j = await r.json();
         if (j?.code && j.code !== 0) {
-          return { data: null, klines: [], status: `Mercado pausado (${j.code})` };
+          return { data: null, status: `Mercado pausado (${j.code})` };
         }
         const arr = (j?.data ?? []) as Array<{
           open: string;
@@ -482,7 +436,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
           time: number;
         }>;
         if (!arr.length) {
-          return { data: null, klines: [], status: "Sem candles disponíveis" };
+          return { data: null, status: "Sem candles disponíveis" };
         }
         const allKs: Kline[] = arr
           .map((k) => ({
@@ -497,9 +451,10 @@ function Index({ onLogout }: { onLogout: () => void }) {
         // EMA inclui vela em formação (close = preço live); ATR usa só fechadas
         const closedKs = allKs.slice(0, -1);
 
-        return { data: processTF(allKs, closedKs), klines: allKs, status: null };
+
+        return { data: processTF(allKs, closedKs), status: null };
       } catch (e) {
-        return { data: null, klines: [], status: "Erro de rede" };
+        return { data: null, status: "Erro de rede" };
       }
     };
 
@@ -515,7 +470,6 @@ function Index({ onLogout }: { onLogout: () => void }) {
       }
       if (b.data) {
         setTf4h(b.data);
-        if (b.klines.length) setRaw4hKlines(b.klines);
       } else {
         setTf4h((prev) =>
           prev ? { ...prev, stale: true } : { mas: null, atr14: null, stale: true },
@@ -524,39 +478,8 @@ function Index({ onLogout }: { onLogout: () => void }) {
       return { ok: Boolean(a.data && b.data) };
     };
 
-    const fetchGbpUsd = async () => {
-      try {
-        const [tickerRes, klinesRes] = await Promise.all([
-          fetch(`/api/ticker?symbol=NCFXGBP2USD-USDT`, { cache: "no-store" }),
-          fetch(`/api/klines?symbol=NCFXGBP2USD-USDT&interval=4h&limit=20`, { cache: "no-store" }),
-        ]);
-        const [tickerJson, klinesJson] = await Promise.all([tickerRes.json(), klinesRes.json()]);
-        if (!cancelled && tickerJson?.data?.lastPrice) {
-          setGbpUsdPrice(Number(tickerJson.data.lastPrice));
-        }
-        const arr = (klinesJson?.data ?? []) as Array<{
-          open: string; high: string; low: string; close: string; time: number;
-        }>;
-        if (!cancelled && arr.length) {
-          setGbpUsd4hKlines(
-            arr.map((k) => ({
-              open: Number(k.open),
-              high: Number(k.high),
-              low: Number(k.low),
-              close: Number(k.close),
-              time: Number(k.time),
-            })),
-          );
-        }
-      } catch {
-        /* keep previous */
-      }
-    };
-
     const runCycle = async () => {
-      const [tickerOk, tfRes] = await Promise.all([fetchTicker(), fetchTFs()]);
-      fetchMatrix();
-      fetchGbpUsd();
+      const [tickerOk, tfRes] = await Promise.all([fetchTicker(), fetchTFs(), fetchVix()]);
       if (cancelled) return;
       const healthy = tickerOk && tfRes.ok;
       setPaused(!healthy);
@@ -599,9 +522,6 @@ function Index({ onLogout }: { onLogout: () => void }) {
         year: "numeric",
       }).format(now)
     : "--/--/----";
-
-  const mediaForca =
-    matrix.length > 0 ? matrix.reduce((s, m) => s + m.changePct, 0) / matrix.length : 0;
 
   const spreadPips = data ? data.spread * 100 : 0;
 
@@ -659,35 +579,6 @@ function Index({ onLogout }: { onLogout: () => void }) {
 
   const closeIn2h = fmtCountdown(nextCloseMs(2));
   const closeIn4h = fmtCountdown(nextCloseMs(4));
-
-  // ─── FILTRO GBP/USD — seleção de candles 4H por fuso ────────────────────
-  // UTC 0:  Candle 1 abre às 08:00 Londres (= 08:00 UTC), Candle 2 às 12:00
-  // UTC+1:  Candle 1 abre às 05:00 Londres (= 04:00 UTC), Candle 2 às 09:00 (= 08:00 UTC)
-  const gbpUsdC1OpenUTC = utcOffset === 0 ? 8 : 4;
-  const gbpUsdC2OpenUTC = utcOffset === 0 ? 12 : 8;
-
-  const findCandleByOpenUTCHour = (klines: Kline[], utcHour: number): Kline | null => {
-    // Find the most recent closed candle that opened at the target UTC hour.
-    // We do NOT filter by date because at e.g. 01:27 London UTC+1 (= 00:27 UTC),
-    // the target candles (04:00 and 08:00 UTC) belong to the previous calendar day.
-    const sorted = [...klines].sort((a, b) => b.time - a.time);
-    return sorted.find((k) => new Date(k.time).getUTCHours() === utcHour) ?? null;
-  };
-
-  const gbpUsdCandle1 = findCandleByOpenUTCHour(gbpUsd4hKlines, gbpUsdC1OpenUTC);
-  const gbpUsdCandle2 = findCandleByOpenUTCHour(gbpUsd4hKlines, gbpUsdC2OpenUTC);
-
-  // ─── TOPOS / FUNDOS — swing points do 4H GBP/JPY ────────────────────────
-  const { highs: swingHighs, lows: swingLows } =
-    raw4hKlines.length >= 5 ? detectSwingPoints(raw4hKlines) : { highs: [], lows: [] };
-  const currentPrice = data?.price ?? 0;
-  const MAX_SWINGS = 5;
-  const topos = [...swingHighs]
-    .sort((a, b) => Math.abs(a.price - currentPrice) - Math.abs(b.price - currentPrice))
-    .slice(0, MAX_SWINGS);
-  const fundos = [...swingLows]
-    .sort((a, b) => Math.abs(a.price - currentPrice) - Math.abs(b.price - currentPrice))
-    .slice(0, MAX_SWINGS);
 
   return (
     <div className="min-h-screen bg-black text-foreground font-mono">
@@ -850,120 +741,10 @@ function Index({ onLogout }: { onLogout: () => void }) {
           </div>
 
           <div className="flex flex-col gap-6">
-            <div className="relative overflow-hidden rounded-2xl border border-[#4a4a4a] bg-black p-5 shadow-sm">
-              <img
-                src={royalLondon}
-                alt=""
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-0 h-full w-full object-contain object-center"
-                style={{ opacity: 0.75 }}
-              />
-              <div className="relative z-10 text-base font-semibold text-muted-foreground">
-                MATRIZ DE FORÇA
-              </div>
-              <div className="relative z-10 mt-3 space-y-1.5">
-                {matrix.length === 0 ? (
-                  <div className="text-xs text-muted-foreground">—</div>
-                ) : (
-                  <>
-                    {matrix.map((m) => (
-                      <div
-                        key={m.label}
-                        className="flex items-center justify-between text-base"
-                      >
-                        <span className="text-foreground">{m.label}</span>
-                        <span
-                          className={`tabular-nums font-semibold ${
-                            m.changePct >= 0 ? "text-emerald-400" : "text-rose-400"
-                          }`}
-                        >
-                          {m.changePct >= 0 ? "+" : ""}
-                          {m.changePct.toFixed(2)}% {m.changePct >= 0 ? "▲" : "▼"}
-                        </span>
-                      </div>
-                    ))}
-                    <div className="mt-2 flex items-center justify-between border-t border-[#4a4a4a] pt-2 text-base">
-                      <span className="font-semibold text-foreground">MÉDIA DE FORÇA</span>
-                      <span
-                        className={`tabular-nums font-bold ${
-                          mediaForca >= 0 ? "text-emerald-400" : "text-rose-400"
-                        }`}
-                      >
-                        {mediaForca >= 0 ? "+" : ""}
-                        {mediaForca.toFixed(2)}% {mediaForca >= 0 ? "▲" : "▼"}
-                      </span>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
+             <MacroVolatilityCard vix={vix} loading={vixLoading} error={vixError} />
             <div className="grid grid-cols-2 gap-4">
-              <div className="rounded-2xl border border-[#4a4a4a] bg-black p-3 shadow-sm flex flex-col gap-1.5">
-                <div className="text-xs font-semibold uppercase tracking-wider text-center">
-                  <span className="text-rose-400">Topos</span>
-                  <span className="text-[#4a4a4a]">/</span>
-                  <span className="text-blue-400">Fundos</span>
-                </div>
-                <div className="grid grid-cols-2 gap-x-2 text-center">
-                  {/* Topos */}
-                  <div className="flex flex-col gap-0.5">
-                    {topos.length === 0 ? (
-                      <span className="text-[10px] text-muted-foreground">—</span>
-                    ) : (
-                      topos.map((t) => (
-                        <span key={t.time} className="text-[11px] font-bold tabular-nums text-rose-400 leading-tight">
-                          {t.price.toFixed(2)}
-                        </span>
-                      ))
-                    )}
-                  </div>
-                  {/* Fundos */}
-                  <div className="flex flex-col gap-0.5">
-                    {fundos.length === 0 ? (
-                      <span className="text-[10px] text-muted-foreground">—</span>
-                    ) : (
-                      fundos.map((f) => (
-                        <span key={f.time} className="text-[11px] font-bold tabular-nums text-blue-400 leading-tight">
-                          {f.price.toFixed(2)}
-                        </span>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-              {/* FILTRO GBP/USD */}
-              <div className="rounded-2xl border border-[#4a4a4a] bg-black p-3 shadow-sm flex flex-col">
-                <div className="text-xs font-bold text-center tracking-widest text-blue-400 mb-2">
-                  FILTRO GBP/USD
-                </div>
-                <div className="flex flex-1 items-center gap-3">
-                  {/* Preço atual */}
-                  <div className="flex-shrink-0 flex items-center justify-center">
-                    <span className="text-2xl font-bold tabular-nums text-emerald-400 leading-none">
-                      {gbpUsdPrice != null ? gbpUsdPrice.toFixed(3) : "---"}
-                    </span>
-                  </div>
-                  {/* Candle 1 e 2 */}
-                  <div className="flex-1 grid grid-cols-2 gap-1 text-center">
-                    {[
-                      { label: "Candle 1", candle: gbpUsdCandle1 },
-                      { label: "Candle 2", candle: gbpUsdCandle2 },
-                    ].map(({ label, candle }) => (
-                      <div key={label}>
-                        <div className="text-xs font-semibold text-blue-400 leading-tight">{label}</div>
-                        <div className="text-xs text-white leading-tight mt-0.5">Máxima</div>
-                        <div className="text-xs font-bold tabular-nums text-blue-400 leading-tight">
-                          {candle ? candle.high.toFixed(3) : "---"}
-                        </div>
-                        <div className="text-xs text-white leading-tight mt-0.5">Mínima</div>
-                        <div className="text-xs font-bold tabular-nums text-rose-400 leading-tight">
-                          {candle ? candle.low.toFixed(3) : "---"}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
+              <CloseInCard title="2H FECHA EM" value={closeIn2h} />
+              <CloseInCard title="4H FECHA EM" value={closeIn4h} />
             </div>
           </div>
         </section>
@@ -1110,6 +891,95 @@ function CloseInCard({ title, value }: { title: string; value: string }) {
     <div className="rounded-2xl border border-[#4a4a4a] bg-black p-5 shadow-sm text-center">
       <div className="text-xs font-semibold uppercase tracking-wider text-blue-400">{title}</div>
       <div className="mt-2 text-2xl font-bold tabular-nums text-foreground">{value}</div>
+    </div>
+  );
+}
+
+function MacroVolatilityCard({
+  vix,
+  loading,
+  error,
+}: {
+  vix: number | null;
+  loading: boolean;
+  error: string | null;
+}) {
+  const diagnostic =
+    vix == null
+      ? null
+      : vix < 20
+        ? {
+            className: "border-emerald-400/70 bg-emerald-400 text-black",
+            text: "DIAGNÓSTICO OPERACIONAL: MERCADO TÉCNICO CALMO. Volatilidade macro em níveis normais. Comportamento do preço previsível e oscilações dentro do esperado. Risco sistêmico baixo.",
+          }
+        : vix <= 30
+          ? {
+              className: "border-yellow-300/70 bg-yellow-300 text-black",
+              text: "DIAGNÓSTICO OPERACIONAL: ATENÇÃO. Aumento de volatilidade macro detectado. Maior propensão a falsos rompimentos. Opere com gerenciamento rigoroso.",
+            }
+          : {
+              className: "border-rose-400/70 bg-rose-500 text-white",
+              text: "DIAGNÓSTICO OPERACIONAL: ALTO RISCO. Volatilidade extrema nos mercados macros. Movimentos atípicos e ruídos elevados. Recomendado reduzir a mão ou aguardar normalização.",
+            };
+
+  const barPercent = vix == null ? 0 : Math.min(100, Math.max(0, (vix / 40) * 100));
+  const barClass =
+    vix == null
+      ? "bg-[#4a4a4a]"
+      : vix < 20
+        ? "bg-emerald-400"
+        : vix <= 30
+          ? "bg-yellow-300"
+          : "bg-rose-500";
+
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-[#4a4a4a] bg-black p-5 shadow-sm">
+      <div className="relative z-10 text-center text-base font-bold tracking-widest text-foreground">
+        VOLATILIDADE MACRO
+      </div>
+
+      <div className="relative z-10 mt-5 grid grid-cols-1 items-stretch gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(7rem,0.72fr)_minmax(0,1fr)]">
+        <div className="rounded-2xl border border-[#4a4a4a] bg-[#0b0d12] p-4">
+          <div className="text-center text-base font-bold text-foreground">VIX (S&amp;P 500)</div>
+          <div className="mt-3 text-center text-4xl font-bold tabular-nums text-emerald-400">
+            {loading && vix == null ? "—" : vix != null ? vix.toFixed(2) : "—"}
+          </div>
+          <div className="mt-4">
+            <div className="h-3 overflow-hidden rounded-full bg-[#4a4a4a]">
+              <div
+                className={`h-full rounded-full transition-[width,background-color] duration-500 ${barClass}`}
+                style={{ width: `${barPercent}%` }}
+              />
+            </div>
+            <div className="mt-1 flex justify-between text-[10px] font-semibold text-muted-foreground">
+              <span>0</span>
+              <span>40</span>
+            </div>
+          </div>
+          {error && <div className="mt-2 text-center text-[10px] text-rose-400">VIX indisponível</div>}
+        </div>
+
+        <div className="relative flex min-h-[160px] items-center justify-center overflow-hidden">
+          <img
+            src={royalLondon}
+            alt=""
+            aria-hidden="true"
+            className="pointer-events-none h-full w-full object-contain object-center"
+            style={{ opacity: 0.75 }}
+          />
+        </div>
+
+        <div
+          aria-hidden="true"
+          className="min-h-[160px] rounded-2xl border border-[#4a4a4a] bg-black"
+        />
+      </div>
+
+      <div
+        className={`relative z-10 mt-5 rounded-2xl border px-5 py-4 text-center text-xs font-bold leading-relaxed transition-colors duration-500 ${diagnostic?.className ?? "border-[#4a4a4a] bg-[#101217] text-muted-foreground"}`}
+      >
+        {diagnostic?.text ?? "DIAGNÓSTICO OPERACIONAL: AGUARDANDO LEITURA DO VIX."}
+      </div>
     </div>
   );
 }
