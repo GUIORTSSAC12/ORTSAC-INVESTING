@@ -224,6 +224,66 @@ function computeATR14(klines: Kline[]): number | null {
   return Number.isFinite(last) ? last : null;
 }
 
+// ADX de Wilder com DI length 14 e suavização ADX 14.
+// Usa todos os candles recebidos, incluindo a vela 2H atualmente em formação.
+function computeADX14(klines: Kline[]): number | null {
+  const period = 14;
+  if (klines.length < period * 2 + 1) return null;
+
+  const trueRanges: number[] = [];
+  const plusDMs: number[] = [];
+  const minusDMs: number[] = [];
+
+  for (let i = 1; i < klines.length; i++) {
+    const current = klines[i];
+    const previous = klines[i - 1];
+    const upMove = current.high - previous.high;
+    const downMove = previous.low - current.low;
+
+    trueRanges.push(
+      Math.max(
+        current.high - current.low,
+        Math.abs(current.high - previous.close),
+        Math.abs(current.low - previous.close),
+      ),
+    );
+    plusDMs.push(upMove > downMove && upMove > 0 ? upMove : 0);
+    minusDMs.push(downMove > upMove && downMove > 0 ? downMove : 0);
+  }
+
+  let smoothedTR = 0;
+  let smoothedPlusDM = 0;
+  let smoothedMinusDM = 0;
+  const dxValues: number[] = [];
+
+  for (let i = 0; i < trueRanges.length; i++) {
+    if (i < period) {
+      smoothedTR += trueRanges[i];
+      smoothedPlusDM += plusDMs[i];
+      smoothedMinusDM += minusDMs[i];
+      if (i !== period - 1) continue;
+    } else {
+      smoothedTR = smoothedTR - smoothedTR / period + trueRanges[i];
+      smoothedPlusDM = smoothedPlusDM - smoothedPlusDM / period + plusDMs[i];
+      smoothedMinusDM = smoothedMinusDM - smoothedMinusDM / period + minusDMs[i];
+    }
+
+    const plusDI = smoothedTR > 0 ? (100 * smoothedPlusDM) / smoothedTR : 0;
+    const minusDI = smoothedTR > 0 ? (100 * smoothedMinusDM) / smoothedTR : 0;
+    const diSum = plusDI + minusDI;
+    dxValues.push(diSum > 0 ? (100 * Math.abs(plusDI - minusDI)) / diSum : 0);
+  }
+
+  if (dxValues.length < period) return null;
+
+  let adx = dxValues.slice(0, period).reduce((sum, value) => sum + value, 0) / period;
+  for (let i = period; i < dxValues.length; i++) {
+    adx = (adx * (period - 1) + dxValues[i]) / period;
+  }
+
+  return Number.isFinite(adx) ? adx : null;
+}
+
 // klines = all candles including forming; closedKlines = forming candle excluded (for ATR)
 function processTF(klines: Kline[], closedKlines: Kline[]): TFData {
   const closes = klines.map((k) => k.close);
@@ -332,6 +392,8 @@ function Index({ onLogout }: { onLogout: () => void }) {
   const [vix, setVix] = useState<number | null>(null);
   const [vixLoading, setVixLoading] = useState(true);
   const [vixError, setVixError] = useState<string | null>(null);
+  const [adx2h, setAdx2h] = useState<number | null>(null);
+  const [adxLoading, setAdxLoading] = useState(true);
   const [utcOffset, setUtcOffset] = useState<0 | 1>(1);
   const [now, setNow] = useState<Date | null>(null);
   const [tf2h, setTf2h] = useState<TFData | null>(null);
@@ -448,7 +510,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
 
     const fetchKlines = async (
       interval: "2h" | "4h",
-    ): Promise<{ data: TFData | null; status: string | null }> => {
+    ): Promise<{ data: TFData | null; adx: number | null; status: string | null }> => {
       try {
         const r = await fetch(
           `/api/klines?symbol=${SYMBOL}&interval=${interval}&limit=500`,
@@ -456,7 +518,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
         );
         const j = await r.json();
         if (j?.code && j.code !== 0) {
-          return { data: null, status: `Mercado pausado (${j.code})` };
+          return { data: null, adx: null, status: `Mercado pausado (${j.code})` };
         }
         const arr = (j?.data ?? []) as Array<{
           open: string;
@@ -466,7 +528,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
           time: number;
         }>;
         if (!arr.length) {
-          return { data: null, status: "Sem candles disponíveis" };
+          return { data: null, adx: null, status: "Sem candles disponíveis" };
         }
         const allKs: Kline[] = arr
           .map((k) => ({
@@ -482,15 +544,21 @@ function Index({ onLogout }: { onLogout: () => void }) {
         const closedKs = allKs.slice(0, -1);
 
 
-        return { data: processTF(allKs, closedKs), status: null };
+        return {
+          data: processTF(allKs, closedKs),
+          adx: interval === "2h" ? computeADX14(allKs) : null,
+          status: null,
+        };
       } catch (e) {
-        return { data: null, status: "Erro de rede" };
+        return { data: null, adx: null, status: "Erro de rede" };
       }
     };
 
     const fetchTFs = async () => {
       const [a, b] = await Promise.all([fetchKlines("2h"), fetchKlines("4h")]);
       if (cancelled) return { ok: false };
+      setAdx2h(a.adx);
+      setAdxLoading(false);
       if (a.data) {
         setTf2h(a.data);
       } else {
@@ -776,6 +844,8 @@ function Index({ onLogout }: { onLogout: () => void }) {
                vix={vix}
                loading={vixLoading}
                error={vixError}
+               adx={adx2h}
+               adxLoading={adxLoading}
                macroVolatilityRef={macroVolatilityRef}
              />
             <div className="grid grid-cols-2 gap-4">
@@ -942,11 +1012,15 @@ function MacroVolatilityCard({
   vix,
   loading,
   error,
+  adx,
+  adxLoading,
   macroVolatilityRef,
 }: {
   vix: number | null;
   loading: boolean;
   error: string | null;
+  adx: number | null;
+  adxLoading: boolean;
   macroVolatilityRef?: React.RefObject<HTMLDivElement | null>;
 }) {
   const diagnostic =
@@ -976,6 +1050,17 @@ function MacroVolatilityCard({
         : vix <= 30
           ? "bg-yellow-300"
           : "bg-rose-500";
+
+  const adxState =
+    adx == null
+      ? null
+      : adx < 20
+        ? { label: "LATERAL", fillPercent: 0 }
+        : adx <= 25
+          ? { label: "INÍCIO", fillPercent: 30 }
+          : adx <= 40
+            ? { label: "FORTE", fillPercent: 60 }
+            : { label: "MUITO FORTE", fillPercent: 100 };
 
   return (
     <div
@@ -1017,10 +1102,23 @@ function MacroVolatilityCard({
           />
         </div>
 
-        <div
-          aria-hidden="true"
-          className="min-h-[160px] rounded-2xl border border-[#4a4a4a] bg-black"
-        />
+        <div className="min-h-[160px] rounded-2xl border border-[#4a4a4a] bg-black p-4">
+          <div className="text-center text-base font-bold text-foreground">ADX (2H)</div>
+          <div className="mt-3 text-center text-4xl font-bold tabular-nums text-emerald-400">
+            {adxLoading && adx == null ? "—" : adx != null ? adx.toFixed(2) : "—"}
+          </div>
+          <div className="mt-4">
+            <div className="h-3 overflow-hidden rounded-full bg-[#4a4a4a]">
+              <div
+                className="h-full rounded-full bg-emerald-400 transition-[width] duration-500"
+                style={{ width: `${adxState?.fillPercent ?? 0}%` }}
+              />
+            </div>
+            <div className="mt-1 text-center text-[10px] font-semibold text-muted-foreground">
+              {adxState?.label ?? "—"}
+            </div>
+          </div>
+        </div>
       </div>
 
       <div
