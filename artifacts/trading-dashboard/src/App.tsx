@@ -987,7 +987,7 @@ function MacroVolatilityCard({
       </div>
 
       <div className="relative z-10 mt-5 grid grid-cols-1 items-stretch gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(7rem,0.72fr)_minmax(0,1fr)]">
-        <div className="rounded-2xl border border-[#4a4a4a] bg-[#0b0d12] p-4">
+        <div className="rounded-2xl border border-[#4a4a4a] bg-black p-4">
           <div className="text-center text-base font-bold text-foreground">VIX (S&amp;P 500)</div>
           <div className="mt-3 text-center text-4xl font-bold tabular-nums text-emerald-400">
             {loading && vix == null ? "—" : vix != null ? vix.toFixed(2) : "—"}
