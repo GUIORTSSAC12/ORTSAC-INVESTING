@@ -398,6 +398,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
   const [now, setNow] = useState<Date | null>(null);
   const [tf2h, setTf2h] = useState<TFData | null>(null);
   const [tf4h, setTf4h] = useState<TFData | null>(null);
+  const [atr2hPrevious, setAtr2hPrevious] = useState<number | null>(null);
   const [paused, setPaused] = useState(false);
   const entrada2hRef = useRef<HTMLDivElement>(null);
   const radarCardRef = useRef<HTMLDivElement>(null);
@@ -510,7 +511,12 @@ function Index({ onLogout }: { onLogout: () => void }) {
 
     const fetchKlines = async (
       interval: "2h" | "4h",
-    ): Promise<{ data: TFData | null; adx: number | null; status: string | null }> => {
+    ): Promise<{
+      data: TFData | null;
+      adx: number | null;
+      atrPrevious: number | null;
+      status: string | null;
+    }> => {
       try {
         const r = await fetch(
           `/api/klines?symbol=${SYMBOL}&interval=${interval}&limit=500`,
@@ -518,7 +524,12 @@ function Index({ onLogout }: { onLogout: () => void }) {
         );
         const j = await r.json();
         if (j?.code && j.code !== 0) {
-          return { data: null, adx: null, status: `Mercado pausado (${j.code})` };
+          return {
+            data: null,
+            adx: null,
+            atrPrevious: null,
+            status: `Mercado pausado (${j.code})`,
+          };
         }
         const arr = (j?.data ?? []) as Array<{
           open: string;
@@ -528,7 +539,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
           time: number;
         }>;
         if (!arr.length) {
-          return { data: null, adx: null, status: "Sem candles disponíveis" };
+          return { data: null, adx: null, atrPrevious: null, status: "Sem candles disponíveis" };
         }
         const allKs: Kline[] = arr
           .map((k) => ({
@@ -543,14 +554,14 @@ function Index({ onLogout }: { onLogout: () => void }) {
         // EMA inclui vela em formação (close = preço live); ATR usa só fechadas
         const closedKs = allKs.slice(0, -1);
 
-
         return {
           data: processTF(allKs, closedKs),
           adx: interval === "2h" ? computeADX14(allKs) : null,
+          atrPrevious: interval === "2h" ? computeATR14(closedKs.slice(0, -1)) : null,
           status: null,
         };
       } catch (e) {
-        return { data: null, adx: null, status: "Erro de rede" };
+        return { data: null, adx: null, atrPrevious: null, status: "Erro de rede" };
       }
     };
 
@@ -559,6 +570,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
       if (cancelled) return { ok: false };
       setAdx2h(a.adx);
       setAdxLoading(false);
+      setAtr2hPrevious(a.atrPrevious);
       if (a.data) {
         setTf2h(a.data);
       } else {
@@ -861,13 +873,12 @@ function Index({ onLogout }: { onLogout: () => void }) {
             <EntradaCard title="ENTRADAS 4H" />
           </div>
 
-          <div className="space-y-4">
-            <MediasMoveisCard tf2h={tf2h} tf4h={tf4h} />
-            <div className="grid grid-cols-2 gap-4">
-              <AtrCard title="ATR 2H" atr={tf2h?.atr14 ?? null} />
-              <AtrCard title="ATR 4H" atr={tf4h?.atr14 ?? null} />
-            </div>
-          </div>
+          <MediasAtrCard
+            tf2h={tf2h}
+            tf4h={tf4h}
+            atr2hCurrent={tf2h?.atr14 ?? null}
+            atr2hPrevious={atr2hPrevious}
+          />
         </section>
 
         {/* Filtros — visível só com scroll */}
@@ -938,7 +949,17 @@ function MaValue({ ma20, ma99 }: { ma20: number; ma99: number }) {
   );
 }
 
-function MediasMoveisCard({ tf2h, tf4h }: { tf2h: TFData | null; tf4h: TFData | null }) {
+function MediasAtrCard({
+  tf2h,
+  tf4h,
+  atr2hCurrent,
+  atr2hPrevious,
+}: {
+  tf2h: TFData | null;
+  tf4h: TFData | null;
+  atr2hCurrent: number | null;
+  atr2hPrevious: number | null;
+}) {
   const renderBody = (tf: TFData | null) => {
     const ma20 = tf?.mas?.ma20 ?? NaN;
     const ma99 = tf?.mas?.ma99 ?? NaN;
@@ -947,27 +968,66 @@ function MediasMoveisCard({ tf2h, tf4h }: { tf2h: TFData | null; tf4h: TFData | 
 
   return (
     <div className="rounded-2xl border border-[#4a4a4a] bg-black p-5 shadow-sm">
-      <div className="text-base font-semibold text-muted-foreground text-center">
-        MÉDIAS MÓVEIS
-      </div>
-      <div className="mt-3 grid grid-cols-2 gap-4">
-        <div className="rounded-xl border border-[#4a4a4a] p-3">
-          <div className="mb-2 text-base font-semibold text-foreground">GRÁFICO 2H</div>
-          {renderBody(tf2h)}
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+        <div>
+          <div className="text-center text-base font-semibold text-muted-foreground">
+            MÉDIAS MÓVEIS
+          </div>
+          <div className="mt-3 space-y-4">
+            <div className="rounded-xl border border-[#4a4a4a] p-3">
+              <div className="mb-2 text-base font-semibold text-foreground">GRÁFICO 2H</div>
+              {renderBody(tf2h)}
+            </div>
+            <div className="rounded-xl border border-[#4a4a4a] p-3">
+              <div className="mb-2 text-base font-semibold text-foreground">GRÁFICO 4H</div>
+              {renderBody(tf4h)}
+            </div>
+          </div>
         </div>
-        <div className="rounded-xl border border-[#4a4a4a] p-3">
-          <div className="mb-2 text-base font-semibold text-foreground">GRÁFICO 4H</div>
-          {renderBody(tf4h)}
+
+        <div>
+          <div className="text-center text-base font-semibold text-muted-foreground">ATR</div>
+          <div className="mt-3 space-y-4">
+            <AtrCard title="ATR 2H" atr={atr2hCurrent} status="ATUAL" statusColor="green" />
+            <AtrCard title="ATR 2H" atr={atr2hPrevious} status="ANTERIOR" statusColor="red" />
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-function AtrCard({ title, atr }: { title: string; atr: number | null }) {
+function AtrCard({
+  title,
+  atr,
+  status,
+  statusColor,
+}: {
+  title: string;
+  atr: number | null;
+  status: "ATUAL" | "ANTERIOR";
+  statusColor: "green" | "red";
+}) {
   return (
-    <div className="rounded-2xl border border-[#4a4a4a] bg-black p-5 shadow-sm text-center">
-      <div className="text-base font-semibold text-muted-foreground">{title}</div>
+    <div className="rounded-xl border border-[#4a4a4a] bg-black p-4 text-center">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1" />
+        <div
+          className={`flex items-center gap-1.5 text-[10px] font-bold ${
+            statusColor === "green" ? "text-emerald-400" : "text-rose-400"
+          }`}
+        >
+          <span
+            className={`h-2.5 w-2.5 rounded-full border-2 ${
+              statusColor === "green"
+                ? "border-emerald-400 bg-emerald-400"
+                : "border-rose-400 bg-rose-400/20"
+            }`}
+          />
+          {status}
+        </div>
+      </div>
+      <div className="mt-1 text-base font-semibold text-foreground">{title}</div>
       <div className="mt-2 text-2xl font-bold tabular-nums text-blue-400">
         {atr != null ? atr.toFixed(3) : "—"}
       </div>
