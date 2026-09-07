@@ -1,8 +1,20 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ThumbsDown, ThumbsUp, Lock, User, LogOut, Eye, EyeOff, ChevronDown } from "lucide-react";
+import {
+  ThumbsDown,
+  ThumbsUp,
+  Lock,
+  User,
+  LogOut,
+  Eye,
+  EyeOff,
+  ChevronDown,
+} from "lucide-react";
 import radarBg from "./assets/radar-bg.jpeg";
 import royalLondon from "./assets/royal-london.jpeg";
-import entradasBg from "./assets/entradas-bg.jpeg";
+import scannerbg from "./assets/scanner.jpeg";
+import { BotaoSomVix } from "./components/BOTAOSOM";
+import ScannerCard from "./components/ScannerCard";
+import TradingCard from "./components/TradingCard";
 
 const AUTH_KEY = "dashboard_auth_v1";
 const AUTH_USER = "guilhermeortsac";
@@ -78,7 +90,9 @@ function Login({ onSuccess }: { onSuccess: () => void }) {
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-500/10 border border-blue-500/40">
             <Lock className="h-5 w-5 text-blue-400" />
           </div>
-          <h1 className="mt-4 text-lg font-semibold tracking-tight">Trading Dashboard</h1>
+          <h1 className="mt-4 text-lg font-semibold tracking-tight">
+            Trading Dashboard
+          </h1>
           <p className="mt-1 text-xs text-muted-foreground">Acesso restrito</p>
         </div>
 
@@ -120,14 +134,18 @@ function Login({ onSuccess }: { onSuccess: () => void }) {
                 className="text-muted-foreground hover:text-foreground transition-colors"
                 tabIndex={-1}
               >
-                {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                {show ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
               </button>
             </div>
           </label>
         </div>
 
         {err && (
-          <div className="mt-3 rounded-lg border border-rose-500/40 bg-rose-500/5 px-3 py-2 text-xs text-rose-400">
+          <div className="mt-3 rounded-lg border border-red-500/40 bg-red-500/5 px-3 py-2 text-xs text-red-400">
             {err}
           </div>
         )}
@@ -156,9 +174,20 @@ const BACKOFF_MS = 5 * 60 * 1000;
 
 const ATR14_REFERENCE_LEVELS = [0.51, 0.5, 0.4, 0.35, 0.31] as const;
 
-type Kline = { open: number; high: number; low: number; close: number; time: number };
+type Kline = {
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  time: number;
+};
 type MAs = { ma20: number; ma99: number };
-type TFData = { mas: MAs | null; atr14: number | null; stale?: boolean; error?: string | null };
+type TFData = {
+  mas: MAs | null;
+  atr14: number | null;
+  stale?: boolean;
+  error?: string | null;
+};
 
 function ema(values: number[], period: number): number[] {
   const out: number[] = new Array(values.length).fill(NaN);
@@ -265,7 +294,8 @@ function computeADX14(klines: Kline[]): number | null {
     } else {
       smoothedTR = smoothedTR - smoothedTR / period + trueRanges[i];
       smoothedPlusDM = smoothedPlusDM - smoothedPlusDM / period + plusDMs[i];
-      smoothedMinusDM = smoothedMinusDM - smoothedMinusDM / period + minusDMs[i];
+      smoothedMinusDM =
+        smoothedMinusDM - smoothedMinusDM / period + minusDMs[i];
     }
 
     const plusDI = smoothedTR > 0 ? (100 * smoothedPlusDM) / smoothedTR : 0;
@@ -276,7 +306,8 @@ function computeADX14(klines: Kline[]): number | null {
 
   if (dxValues.length < period) return null;
 
-  let adx = dxValues.slice(0, period).reduce((sum, value) => sum + value, 0) / period;
+  let adx =
+    dxValues.slice(0, period).reduce((sum, value) => sum + value, 0) / period;
   for (let i = period; i < dxValues.length; i++) {
     adx = (adx * (period - 1) + dxValues[i]) / period;
   }
@@ -292,23 +323,65 @@ function processTF(klines: Kline[], closedKlines: Kline[]): TFData {
       ma20: computeEMA(closes, 20) ?? NaN,
       ma99: computeEMA(closes, 99) ?? NaN,
     },
-    atr14: computeATR14(closedKlines),  // ATR usa só candles fechados (sem distorção da vela atual)
+    atr14: computeATR14(closedKlines), // ATR usa só candles fechados (sem distorção da vela atual)
   };
 }
 
 type TickerData = {
   price: number;
-  ask: number;
-  bid: number;
-  spread: number;
+  ask: number | null;
+  bid: number | null;
+  spread: number | null;
   changePct: number;
   ts: number;
 };
 
-function FiltroCard({ title, cardId, rows }: { title: string; cardId: string; rows: string[] }) {
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function mergeTFData(previous: TFData | null, next: TFData): TFData {
+  const nextMa20 = next.mas?.ma20;
+  const nextMa99 = next.mas?.ma99;
+  const previousMa20 = previous?.mas?.ma20;
+  const previousMa99 = previous?.mas?.ma99;
+  const ma20 = isFiniteNumber(nextMa20)
+    ? nextMa20
+    : isFiniteNumber(previousMa20)
+      ? previousMa20
+      : null;
+  const ma99 = isFiniteNumber(nextMa99)
+    ? nextMa99
+    : isFiniteNumber(previousMa99)
+      ? previousMa99
+      : null;
+
+  return {
+    mas: ma20 != null || ma99 != null ? { ma20: ma20 ?? NaN, ma99: ma99 ?? NaN } : null,
+    atr14: isFiniteNumber(next.atr14)
+      ? next.atr14
+      : isFiniteNumber(previous?.atr14)
+        ? previous!.atr14
+        : null,
+    stale: false,
+    error: null,
+  };
+}
+
+function FiltroCard({
+  title,
+  cardId,
+  rows,
+}: {
+  title: string;
+  cardId: string;
+  rows: string[];
+}) {
   const [open, setOpen] = useState<boolean[]>(rows.map(() => false));
   const [notes, setNotes] = useState<string[]>(rows.map(() => ""));
-  const timersRef = useRef<(ReturnType<typeof setTimeout> | null)[]>(rows.map(() => null));
+  const timersRef = useRef<(ReturnType<typeof setTimeout> | null)[]>(
+    rows.map(() => null),
+  );
 
   useEffect(() => {
     rows.forEach((_, i) => {
@@ -354,15 +427,22 @@ function FiltroCard({ title, cardId, rows }: { title: string; cardId: string; ro
 
   return (
     <div className="rounded-2xl border border-[#4a4a4a] bg-black p-4 shadow-sm">
-      <div className="mb-3 text-sm font-bold tracking-widest text-cyan-400">{title}</div>
+      <div className="mb-3 text-sm font-bold tracking-widest text-cyan-400">
+        {title}
+      </div>
       <div className="space-y-2">
         {rows.map((label, i) => (
-          <div key={i} className="overflow-hidden rounded-lg border border-[#2a2a2a] bg-[#0d1117]">
+          <div
+            key={i}
+            className="overflow-hidden rounded-lg border border-[#2a2a2a] bg-[#0d1117]"
+          >
             <button
               className="flex w-full items-center justify-between px-3 py-2.5 text-left"
               onClick={() => toggleRow(i)}
             >
-              <span className="text-xs font-mono tracking-wider text-cyan-400">{label}</span>
+              <span className="text-xs font-mono tracking-wider text-cyan-400">
+                {label}
+              </span>
               <ChevronDown
                 className={`h-4 w-4 flex-shrink-0 text-gray-500 transition-transform duration-200 ${open[i] ? "rotate-180" : ""}`}
               />
@@ -384,6 +464,10 @@ function FiltroCard({ title, cardId, rows }: { title: string; cardId: string; ro
 }
 
 function Index({ onLogout }: { onLogout: () => void }) {
+  const [pendingTrade, setPendingTrade] = useState<{
+    title: string;
+    type: string;
+  } | null>(null);
   const [data, setData] = useState<TickerData | null>(null);
   const [prevPrice, setPrevPrice] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -420,7 +504,8 @@ function Index({ onLogout }: { onLogout: () => void }) {
 
   useLayoutEffect(() => {
     const alignMarketBanner = () => {
-      const macroBottom = macroVolatilityRef.current?.getBoundingClientRect().bottom;
+      const macroBottom =
+        macroVolatilityRef.current?.getBoundingClientRect().bottom;
       const banner = marketBannerRef.current;
       const wrapper = marketBannerWrapperRef.current;
       if (macroBottom == null || !banner || !wrapper) return;
@@ -434,7 +519,8 @@ function Index({ onLogout }: { onLogout: () => void }) {
 
     alignMarketBanner();
     const resizeObserver = new ResizeObserver(alignMarketBanner);
-    if (macroVolatilityRef.current) resizeObserver.observe(macroVolatilityRef.current);
+    if (macroVolatilityRef.current)
+      resizeObserver.observe(macroVolatilityRef.current);
     if (radarCardRef.current) resizeObserver.observe(radarCardRef.current);
     window.addEventListener("resize", alignMarketBanner);
     return () => {
@@ -463,26 +549,39 @@ function Index({ onLogout }: { onLogout: () => void }) {
         }
         const d = json?.data;
         if (!d || !d.lastPrice) throw new Error("Resposta inválida da API");
-        const ask = Number(d.askPrice ?? 0);
-        const bid = Number(d.bidPrice ?? 0);
-        const next: TickerData = {
-          price: Number(d.lastPrice ?? 0),
-          ask,
-          bid,
-          spread: ask - bid,
-          changePct: Number(d.priceChangePercent ?? 0),
-          ts: Number(d.closeTime ?? Date.now()),
-        };
+        const price = Number(d.lastPrice);
+        if (!isFiniteNumber(price) || price <= 0) {
+          throw new Error("Preço inválido recebido da API");
+        }
+        const ask = Number(d.askPrice);
+        const bid = Number(d.bidPrice);
+        const changePct = Number(d.priceChangePercent);
+        const ts = Number(d.closeTime);
         if (cancelled) return false;
         setData((curr) => {
-          if (curr) setPrevPrice(curr.price);
+          const validAsk = isFiniteNumber(ask) && ask > 0 ? ask : curr?.ask ?? null;
+          const validBid = isFiniteNumber(bid) && bid > 0 ? bid : curr?.bid ?? null;
+          const spread =
+            validAsk != null && validBid != null && validAsk >= validBid
+              ? validAsk - validBid
+              : curr?.spread ?? null;
+          const next: TickerData = {
+            price,
+            ask: validAsk,
+            bid: validBid,
+            spread,
+            changePct: isFiniteNumber(changePct) ? changePct : curr?.changePct ?? 0,
+            ts: isFiniteNumber(ts) ? ts : curr?.ts ?? Date.now(),
+          };
+          if (curr && isFiniteNumber(curr.price)) setPrevPrice(curr.price);
           return next;
         });
         setLastUpdate(new Date());
         setError(null);
         return true;
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Erro desconhecido");
+        if (!cancelled)
+          setError(e instanceof Error ? e.message : "Erro desconhecido");
         return false;
       } finally {
         if (!cancelled) setLoading(false);
@@ -539,7 +638,12 @@ function Index({ onLogout }: { onLogout: () => void }) {
           time: number;
         }>;
         if (!arr.length) {
-          return { data: null, adx: null, atrPrevious: null, status: "Sem candles disponíveis" };
+          return {
+            data: null,
+            adx: null,
+            atrPrevious: null,
+            status: "Sem candles disponíveis",
+          };
         }
         const allKs: Kline[] = arr
           .map((k) => ({
@@ -557,39 +661,53 @@ function Index({ onLogout }: { onLogout: () => void }) {
         return {
           data: processTF(allKs, closedKs),
           adx: interval === "2h" ? computeADX14(allKs) : null,
-          atrPrevious: interval === "2h" ? computeATR14(closedKs.slice(0, -1)) : null,
+          atrPrevious:
+            interval === "2h" ? computeATR14(closedKs.slice(0, -1)) : null,
           status: null,
         };
       } catch (e) {
-        return { data: null, adx: null, atrPrevious: null, status: "Erro de rede" };
+        return {
+          data: null,
+          adx: null,
+          atrPrevious: null,
+          status: "Erro de rede",
+        };
       }
     };
 
     const fetchTFs = async () => {
       const [a, b] = await Promise.all([fetchKlines("2h"), fetchKlines("4h")]);
       if (cancelled) return { ok: false };
-      setAdx2h(a.adx);
+      if (isFiniteNumber(a.adx)) setAdx2h(a.adx);
       setAdxLoading(false);
-      setAtr2hPrevious(a.atrPrevious);
+      if (isFiniteNumber(a.atrPrevious)) setAtr2hPrevious(a.atrPrevious);
       if (a.data) {
-        setTf2h(a.data);
+        setTf2h((prev) => mergeTFData(prev, a.data!));
       } else {
         setTf2h((prev) =>
-          prev ? { ...prev, stale: true } : { mas: null, atr14: null, stale: true },
+          prev
+            ? { ...prev, stale: true }
+            : { mas: null, atr14: null, stale: true },
         );
       }
       if (b.data) {
-        setTf4h(b.data);
+        setTf4h((prev) => mergeTFData(prev, b.data!));
       } else {
         setTf4h((prev) =>
-          prev ? { ...prev, stale: true } : { mas: null, atr14: null, stale: true },
+          prev
+            ? { ...prev, stale: true }
+            : { mas: null, atr14: null, stale: true },
         );
       }
       return { ok: Boolean(a.data && b.data) };
     };
 
     const runCycle = async () => {
-      const [tickerOk, tfRes] = await Promise.all([fetchTicker(), fetchTFs(), fetchVix()]);
+      const [tickerOk, tfRes] = await Promise.all([
+        fetchTicker(),
+        fetchTFs(),
+        fetchVix(),
+      ]);
       if (cancelled) return;
       const healthy = tickerOk && tfRes.ok;
       setPaused(!healthy);
@@ -615,13 +733,15 @@ function Index({ onLogout }: { onLogout: () => void }) {
 
   const priceColor =
     direction === "up"
-      ? "text-emerald-400"
+      ? "text-emerald-600"
       : direction === "down"
-        ? "text-rose-400"
+        ? "text-red-500"
         : "text-foreground";
 
   const londonClock = now
-    ? new Date(now.getTime() + utcOffset * 3600_000).toISOString().substring(11, 19)
+    ? new Date(now.getTime() + utcOffset * 3600_000)
+        .toISOString()
+        .substring(11, 19)
     : "--:--:--";
 
   const brasiliaDate = now
@@ -633,7 +753,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
       }).format(now)
     : "--/--/----";
 
-  const spreadPips = data ? data.spread * 100 : 0;
+  const spreadPips = data?.spread != null ? data.spread * 100 : null;
 
   void ATR14_REFERENCE_LEVELS;
 
@@ -645,14 +765,14 @@ function Index({ onLogout }: { onLogout: () => void }) {
   // isCandleOpenHour(londonHour, cycle) → true quando aquela hora de Londres
   // é um ponto de abertura de vela, respeitando o utcOffset ativo.
   const isCandleOpenHour = (londonHour: number, cycle: number): boolean =>
-    ((londonHour - utcOffset) % cycle + cycle) % cycle === 0;
+    (((londonHour - utcOffset) % cycle) + cycle) % cycle === 0;
 
   // Arrays com todos os horários de abertura de vela no dia (hora de Londres)
-  const candleOpenHours2h = Array.from({ length: 24 }, (_, h) => h).filter((h) =>
-    isCandleOpenHour(h, 2),
+  const candleOpenHours2h = Array.from({ length: 24 }, (_, h) => h).filter(
+    (h) => isCandleOpenHour(h, 2),
   );
-  const candleOpenHours4h = Array.from({ length: 24 }, (_, h) => h).filter((h) =>
-    isCandleOpenHour(h, 4),
+  const candleOpenHours4h = Array.from({ length: 24 }, (_, h) => h).filter(
+    (h) => isCandleOpenHour(h, 4),
   );
 
   void isCandleOpenHour;
@@ -664,7 +784,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
     const londonMs = now.getTime() + utcOffset * 3600_000;
     const ld = new Date(londonMs);
     const h = ld.getUTCHours();
-    const offsetInCycle = ((h - utcOffset) % cycle + cycle) % cycle;
+    const offsetInCycle = (((h - utcOffset) % cycle) + cycle) % cycle;
     const baseHour = h - offsetInCycle;
     const baseLondonMs = Date.UTC(
       ld.getUTCFullYear(),
@@ -695,13 +815,16 @@ function Index({ onLogout }: { onLogout: () => void }) {
       <div className="mx-auto w-full max-w-[1600px] px-[clamp(0.75rem,2vw,2rem)] pb-[clamp(1rem,2.5vh,2.5rem)] pt-[clamp(2.5rem,6vh,5rem)]">
         <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="text-base font-semibold tracking-tight">Trading Dashboard</h1>
+            <h1 className="text-base font-semibold tracking-tight">
+              Trading Dashboard
+            </h1>
             <p className="text-xs text-muted-foreground">
               Fonte: BingX · Atualização a cada {POLL_MS / 1000}s
             </p>
           </div>
 
           <div className="flex items-center gap-3">
+            <BotaoSomVix />
             <div className="rounded-xl border border-[#4a4a4a] bg-black px-4 py-2 text-center">
               <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
                 Data atual
@@ -728,7 +851,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
               onClick={() => setUtcOffset(0)}
               className={`rounded-lg px-3 py-2 text-xs font-semibold leading-tight transition-colors ${
                 utcOffset === 0
-                  ? "bg-blue-500 text-white"
+                  ? "bg-blue-600 text-Cyan-300"
                   : "bg-secondary text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -740,7 +863,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
               onClick={() => setUtcOffset(1)}
               className={`rounded-lg px-3 py-2 text-xs font-semibold leading-tight transition-colors ${
                 utcOffset === 1
-                  ? "bg-blue-500 text-white"
+                  ? "bg-blue-600 text-Cyan-300"
                   : "bg-secondary text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -751,7 +874,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
             <button
               onClick={onLogout}
               title="Sair"
-              className="flex items-center gap-1.5 rounded-lg bg-secondary px-3 py-2 text-xs font-semibold text-muted-foreground hover:text-rose-400 transition-colors"
+              className="flex items-center gap-1.5 rounded-lg bg-secondary px-3 py-2 text-xs font-semibold text-muted-foreground hover:text-red-600 transition-colors"
             >
               <LogOut className="h-3.5 w-3.5" />
               SAIR
@@ -762,48 +885,39 @@ function Index({ onLogout }: { onLogout: () => void }) {
         <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div
             ref={radarCardRef}
-            className="relative flex h-full min-h-[360px] flex-col overflow-hidden rounded-2xl border border-[#4a4a4a] bg-black p-8 shadow-sm"
+            className="relative flex h-full min-h-[300px] flex-col overflow-hidden rounded-2xl border border-[#4a4a4a] bg-black p-6 shadow-sm"
           >
             {/* Radar artwork occupies only the area above the fixed bottom banner. */}
-            <div className="pointer-events-none absolute inset-0 bottom-[82px] overflow-hidden">
-              <img
-                src={radarBg}
-                alt=""
-                aria-hidden="true"
-                className="absolute inset-0 h-full w-full object-contain object-center"
-                style={{
-                  transform: "scale(1.15)",
-                  opacity: 0.75,
-                  border: "none",
-                  outline: "none",
-                }}
-              />
-
-              {/* Radar sweep beam — its pivot follows the reserved artwork area. */}
+            <div
+              className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center"
+              aria-hidden="true"
+            >
               <div
-                aria-hidden="true"
-                className="absolute inset-0 overflow-hidden"
-                style={{
-                  borderRadius: "inherit",
-                  transformOrigin: "50% 50%",
-                  animation: "radar-sweep 5s linear infinite",
-                  background:
-                    "conic-gradient(from 0deg at 50% 50%, transparent 0deg, transparent 315deg, rgba(0,220,255,0.03) 328deg, rgba(0,220,255,0.13) 342deg, rgba(0,220,255,0.48) 356deg, rgba(0,220,255,0.9) 360deg)",
-                  mixBlendMode: "screen",
-                }}
-              />
+                className="relative opacity-95"
+                style={{ width: "min(90%, 495px)", aspectRatio: "1 / 1" }}
+              >
+                500
+                <img
+                  src={radarBg}
+                  alt=""
+                  draggable={false}
+                  className="absolute inset-0 h-full w-full select-none object-contain"
+                  style={{ imageRendering: "auto" }}
+                />
+                <div className="radar-sweep absolute inset-0 h-full w-full" />
+              </div>
             </div>
 
             <div className="relative z-10 flex min-h-0 flex-1 flex-col">
               <div className="flex items-baseline justify-between">
                 <div className="text-base font-semibold">
-                  <span className="text-emerald-400">{DISPLAY_SYMBOL}</span>{" "}
-                  <span className="text-muted-foreground">PERPETUAL</span>
+                  <span className="text-emerald-500">{DISPLAY_SYMBOL}</span>{" "}
+                  <span className="text-cyan-300 ">PERPETUAL</span>
                 </div>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <span
                     className={`inline-block h-2 w-2 rounded-full ${
-                      error ? "bg-rose-500" : "bg-emerald-500 animate-pulse"
+                      error ? "bg-red-500" : "bg-emerald-600 animate-pulse"
                     }`}
                   />
                   {error ? "Desconectado" : "Ao vivo"}
@@ -825,7 +939,9 @@ function Index({ onLogout }: { onLogout: () => void }) {
                   {data && (
                     <div
                       className={`mt-1 text-base font-semibold tabular-nums ${
-                        data.changePct >= 0 ? "text-emerald-400" : "text-rose-400"
+                        data.changePct >= 0
+                          ? "text-emerald-600"
+                          : "text-red-500"
                       }`}
                     >
                       {data.changePct >= 0 ? "+" : ""}
@@ -833,10 +949,10 @@ function Index({ onLogout }: { onLogout: () => void }) {
                     </div>
                   )}
                 </div>
-                <div className="text-right">
+                <div className="text-cyan-300 ">
                   <div className="text-2xl font-bold tracking-wide">SPREAD</div>
-                  <div className="mt-1 text-xl font-semibold tabular-nums text-foreground">
-                    {data ? spreadPips.toFixed(1) : "—"} pips
+                  <div className="mt-1 text-xl font-semibold tabular-nums text-cyan-300">
+                    {spreadPips != null ? spreadPips.toFixed(1) : "—"} pips
                   </div>
                 </div>
               </div>
@@ -847,30 +963,40 @@ function Index({ onLogout }: { onLogout: () => void }) {
               className="relative z-10 mt-6 shrink-0"
               style={{ transform: `translateY(${marketBannerShift}px)` }}
             >
-              <MarketStatusBanner open={marketOpen} bannerRef={marketBannerRef} />
+              <MarketStatusBanner
+                open={marketOpen}
+                bannerRef={marketBannerRef}
+              />
             </div>
           </div>
 
-          <div className="flex flex-col gap-6">
-             <MacroVolatilityCard
-               vix={vix}
-               loading={vixLoading}
-               error={vixError}
-               adx={adx2h}
-               adxLoading={adxLoading}
-               macroVolatilityRef={macroVolatilityRef}
-             />
-            <div className="grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-2">
+            <MacroVolatilityCard
+              vix={vix}
+              loading={vixLoading}
+              error={vixError}
+              adx={adx2h}
+              adxLoading={adxLoading}
+              macroVolatilityRef={macroVolatilityRef}
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <CloseInCard title="TOPOS/FUNDOS 2H" value={closeIn2h} />
               <CloseInCard title="2H FECHA EM" value={closeIn2h} />
-              <CloseInCard title="4H FECHA EM" value={closeIn4h} />
             </div>
           </div>
         </section>
-
         <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <EntradaCard title="ENTRADAS 2H" divRef={entrada2hRef} />
-            <EntradaCard title="ENTRADAS 4H" />
+            <ScannerCard
+              divRef={entrada2hRef}
+              onPatternChange={(report: string | null) => setPendingTrade(report ? { title: report, type: "scanner" } : null)}
+            />
+
+            <TradingCard
+              divRef={entrada2hRef}
+              patternReport={pendingTrade?.title ?? null}
+              onPendingChange={(pending) => setPendingTrade(pending)}
+            />
           </div>
 
           <MediasAtrCard
@@ -887,36 +1013,74 @@ function Index({ onLogout }: { onLogout: () => void }) {
             <FiltroCard
               title="FILTRO 2H"
               cardId="filtro_2h"
-              rows={["2H", "COMO FUGIR DO INSTITUCIONAL", "VEM DE CIMA", "VEM DE BAIXO", "", ""]}
+              rows={[
+                "2H",
+                "COMO FUGIR DO INSTITUCIONAL",
+                "VEM DE CIMA",
+                "VEM DE BAIXO",
+                "",
+                "",
+              ]}
             />
             <FiltroCard
               title="FILTRO 4H"
               cardId="filtro_4h"
               rows={["4H", "OLHAR O GBP USD", "COMPRA", "VENDA", "", ""]}
             />
-            <div className="rounded-2xl border border-[#4a4a4a] bg-black p-5 shadow-sm min-h-[200px]" />
+            <div className="rounded-2xl border border-[#4a4a4a] bg-black p-5 flex flex-col h-full min-h-[220px] shadow-lg">
+              <div className="flex items-center justify-between mb-2">
+                <span
+                  style={{ fontSize: "16px" }}
+                  className="font-bold tracking-wider text-cyan-300 uppercase block"
+                >
+                  TRADE PENDENTE
+                </span>
+                <span className="text-[9px] font-mono px-2 py-0.5 bg-black/60 border border-cyan-500/30 text-cyan-300 rounded">
+                  [Reserva Ativa]
+                </span>
+              </div>
+
+              <div className="flex-1 flex flex-col items-center justify-center text-center font-mono text-xs">
+                {pendingTrade ? (
+                  <span className="text-amber-400 font-bold">
+                    [RESERVA ATIVA: {pendingTrade.title} - {pendingTrade.type}]
+                  </span>
+                ) : (
+                  <span className="text-cyan-500/80">
+                    [Aguardando estratégia em reserva...]
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
         </section>
-
       </div>
     </div>
   );
 }
 
-function EntradaCard({ title, divRef }: { title: string; divRef?: React.RefObject<HTMLDivElement | null> }) {
+function EntradaCard({
+  title,
+  divRef,
+}: {
+  title: string;
+  divRef?: React.RefObject<HTMLDivElement | null>;
+}) {
   return (
     <div
       ref={divRef}
-      className="relative overflow-hidden rounded-2xl border border-[#4a4a4a] bg-black shadow-sm min-h-[120px]"
+      className="relative overflow-hidden rounded-2xl border border-[#4a4a4a] bg-black shadow-sm min-h-[160px]"
     >
       <img
-        src={entradasBg}
+        src={scannerbg}
         alt=""
         className="absolute inset-0 w-full h-full object-contain"
         draggable={false}
       />
       <div className="relative z-10 p-5">
-        <div className="text-base font-semibold tracking-wide text-cyan-400">{title}</div>
+        <div className="text-base font-semibold tracking-wide text-cyan-400">
+          {title}
+        </div>
       </div>
     </div>
   );
@@ -930,18 +1094,20 @@ function MaValue({ ma20, ma99 }: { ma20: number; ma99: number }) {
       ? "bg-muted text-muted-foreground"
       : ma20 > ma99
         ? "bg-blue-500/90 text-white"
-        : "bg-rose-500/90 text-white";
+        : "bg-red-500/90 text-white";
   return (
     <div className="space-y-1 text-sm tabular-nums">
       <div className="flex flex-row flex-nowrap items-center justify-between gap-2 whitespace-nowrap">
-        <span className="text-yellow-400 whitespace-nowrap">EMA 99:</span>
+        <span className="text-yellow-400 whitespace-nowrap">MÉDIA 99:</span>
         <span className="font-semibold text-yellow-400 whitespace-nowrap">
           {valid99 ? ma99.toFixed(3) : "N/A"}
         </span>
       </div>
       <div className="flex flex-row flex-nowrap items-center justify-between gap-2 whitespace-nowrap">
-        <span className="text-rose-400 whitespace-nowrap">EMA 20:</span>
-        <span className={`rounded px-2 py-0.5 font-semibold whitespace-nowrap ${bg}`}>
+        <span className="text-red-500 whitespace-nowrap">MÉDIA 20:</span>
+        <span
+          className={`rounded px-2 py-0.5 font-semibold whitespace-nowrap ${bg}`}
+        >
           {valid20 ? ma20.toFixed(3) : "N/A"}
         </span>
       </div>
@@ -968,28 +1134,44 @@ function MediasAtrCard({
 
   return (
     <div className="rounded-2xl border border-[#4a4a4a] bg-black p-5 shadow-sm">
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-2">
         <div>
-          <div className="text-center text-base font-semibold text-muted-foreground">
+          <div className="text-center text-base font-semibold text-cyan-300 ">
             MÉDIAS MÓVEIS
           </div>
           <div className="mt-3 space-y-4">
             <div className="rounded-xl border border-[#4a4a4a] p-3">
-              <div className="mb-2 text-base font-semibold text-foreground">GRÁFICO 2H</div>
+              <div className="mb-4 text-base font-semibold text-cyan-300 ">
+                GRÁFICO 2H
+              </div>
               {renderBody(tf2h)}
             </div>
             <div className="rounded-xl border border-[#4a4a4a] p-3">
-              <div className="mb-2 text-base font-semibold text-foreground">GRÁFICO 4H</div>
+              <div className="mb-4 text-base font-semibold text-cyan-300 ">
+                GRÁFICO 4H
+              </div>
               {renderBody(tf4h)}
             </div>
           </div>
         </div>
 
         <div>
-          <div className="text-center text-base font-semibold text-muted-foreground">ATR</div>
+          <div className="text-center text-base font-semibold text-cyan-300 ">
+            ATR
+          </div>
           <div className="mt-3 space-y-4">
-            <AtrCard title="ATR 2H" atr={atr2hCurrent} status="ATUAL" statusColor="green" />
-            <AtrCard title="ATR 2H" atr={atr2hPrevious} status="ANTERIOR" statusColor="red" />
+            <AtrCard
+              title="ATR 2H"
+              atr={atr2hCurrent}
+              status="ATUAL"
+              statusColor="green"
+            />
+            <AtrCard
+              title="ATR 2H"
+              atr={atr2hPrevious}
+              status="ANTERIOR"
+              statusColor="red"
+            />
           </div>
         </div>
       </div>
@@ -1009,26 +1191,28 @@ function AtrCard({
   statusColor: "green" | "red";
 }) {
   return (
-    <div className="rounded-xl border border-[#4a4a4a] bg-black p-4 text-center">
-      <div className="flex items-start justify-between gap-2">
+    <div className="rounded-xl border border-[#4a4a4a] bg-black p-3 text-center">
+      <div className="flex items-start justify-between gap-2.5">
         <div className="flex-1" />
         <div
           className={`flex items-center gap-1.5 text-[10px] font-bold ${
-            statusColor === "green" ? "text-emerald-400" : "text-rose-400"
+            statusColor === "green" ? "text-emerald-600" : "text-red-500"
           }`}
         >
           <span
             className={`h-2.5 w-2.5 rounded-full border-2 ${
               statusColor === "green"
-                ? "border-emerald-400 bg-emerald-400"
-                : "border-rose-400 bg-rose-400/20"
+                ? "border-emerald-600 bg-emerald-600"
+                : "border-red-500 bg-red-500"
             }`}
           />
           {status}
         </div>
       </div>
-      <div className="mt-1 text-base font-semibold text-foreground">{title}</div>
-      <div className="mt-2 text-2xl font-bold tabular-nums text-blue-400">
+      <div className="mt-1.5 text-base font-semibold text-cyan-300 ">
+        {title}
+      </div>
+      <div className="mt-1.75 text-3xl font-bold tabular-nums text-blue-600">
         {atr != null ? atr.toFixed(3) : "—"}
       </div>
     </div>
@@ -1049,8 +1233,8 @@ function MarketStatusBanner({
       ref={bannerRef}
       className={`mt-4 flex items-center justify-center gap-3 rounded-xl border px-4 py-3 ${
         open
-          ? "border-emerald-500/60 bg-emerald-500/5 text-emerald-400"
-          : "border-rose-500/60 bg-rose-500/5 text-rose-400"
+          ? "border-emerald-600/60 bg-emerald-600/5 text-emerald-600"
+          : "border-red-600/60 bg-red-600/5 text-red-600"
       }`}
     >
       <Icon className="h-6 w-6" />
@@ -1062,8 +1246,12 @@ function MarketStatusBanner({
 function CloseInCard({ title, value }: { title: string; value: string }) {
   return (
     <div className="rounded-2xl border border-[#4a4a4a] bg-black p-5 shadow-sm text-center">
-      <div className="text-xs font-semibold uppercase tracking-wider text-blue-400">{title}</div>
-      <div className="mt-2 text-2xl font-bold tabular-nums text-foreground">{value}</div>
+      <div className="text-xs font-semibold uppercase tracking-wider text-blue-400">
+        {title}
+      </div>
+      <div className="mt-2 text-2xl font-bold tabular-nums text-foreground">
+        {value}
+      </div>
     </div>
   );
 }
@@ -1088,28 +1276,29 @@ function MacroVolatilityCard({
       ? null
       : vix < 20
         ? {
-            className: "border-emerald-400/70 bg-emerald-400 text-black",
-            text: "DIAGNÓSTICO OPERACIONAL: MERCADO TÉCNICO CALMO. Volatilidade macro em níveis normais. Comportamento do preço previsível e oscilações dentro do esperado. Risco sistêmico baixo.",
+            className: "border-emerald-600/70 bg-emerald-600 text-black",
+            text: "DIAGNÓSTICO OPERACIONAL: MERCADO TÉCNICO CALMO. VOLATILIDADE MACRO EM NÍVEIS NORMAIS. COMPORTAMENTO DO PREÇO PREVISÍVEL E OSCILAÇÕES DENTRO DO ESPERADO. RISCO SISTÊMICO BAIXO.",
           }
         : vix <= 30
           ? {
               className: "border-yellow-300/70 bg-yellow-300 text-black",
-              text: "DIAGNÓSTICO OPERACIONAL: ATENÇÃO. Aumento de volatilidade macro detectado. Maior propensão a falsos rompimentos. Opere com gerenciamento rigoroso.",
+              text: "DIAGNÓSTICO OPERACIONAL: ATENÇÃO.AUMENTO DE VOLATILIDADE MACRO DETECTADO. MAIOR PROPENSÃO A FALSOS ROMPIMENTOS. OPERE COM GERENCIAMENTO RIGOROSO.",
             }
           : {
-              className: "border-rose-400/70 bg-rose-500 text-black",
-              text: "DIAGNÓSTICO OPERACIONAL: ALTO RISCO. Volatilidade extrema nos mercados macros. Movimentos atípicos e ruídos elevados. Recomendado reduzir a mão ou aguardar normalização.",
+              className: "border-red-600/70 bg-red-600 text-black",
+              text: "DIAGNÓSTICO OPERACIONAL: ALTO RISCO. VOLATILIDADE EXTREMA NOS MERCADOS MACROS. MOVIMENTOS ATÍPICOS E RUÍDOS ELEVADOS. RECOMENDADO REDUZIR A MÃO OU AGUARDAR NORMALIZAÇÃO.",
             };
 
-  const barPercent = vix == null ? 0 : Math.min(100, Math.max(0, (vix / 40) * 100));
+  const barPercent =
+    vix == null ? 0 : Math.min(100, Math.max(0, (vix / 40) * 100));
   const barClass =
     vix == null
       ? "bg-[#4a4a4a]"
       : vix < 20
-        ? "bg-emerald-400"
+        ? "bg-emerald-600"
         : vix <= 30
           ? "bg-yellow-300"
-          : "bg-rose-500";
+          : "bg-red-500";
 
   const adxState =
     adx == null
@@ -1125,16 +1314,18 @@ function MacroVolatilityCard({
   return (
     <div
       ref={macroVolatilityRef}
-      className="relative overflow-hidden rounded-2xl border border-[#4a4a4a] bg-black p-5 shadow-sm"
+      className="relative overflow-hidden rounded-2xl border border-[#4a4a4a] bg-black p-3 shadow-sm"
     >
-      <div className="relative z-10 text-center text-base font-bold tracking-widest text-foreground">
+      <div className="relative z-10 text-center text-base font-bold tracking-widest text-cyan-300 ">
         VOLATILIDADE MACRO
       </div>
 
-      <div className="relative z-10 mt-5 grid grid-cols-1 items-stretch gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(7rem,0.72fr)_minmax(0,1fr)]">
+      <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
         <div className="rounded-2xl border border-[#4a4a4a] bg-black p-4">
-          <div className="text-center text-base font-bold text-foreground">VIX (S&amp;P 500)</div>
-          <div className="mt-3 text-center text-4xl font-bold tabular-nums text-emerald-400">
+          <div className="text-center text-base font-bold text-cyan-300 ">
+            VIX (S&amp;P 500)
+          </div>
+          <div className="mt-3 text-center text-4xl font-bold tabular-nums text-emerald-600">
             {loading && vix == null ? "—" : vix != null ? vix.toFixed(2) : "—"}
           </div>
           <div className="mt-4">
@@ -1149,28 +1340,38 @@ function MacroVolatilityCard({
               <span>40</span>
             </div>
           </div>
-          {error && <div className="mt-2 text-center text-[10px] text-rose-400">VIX indisponível</div>}
+          {error && (
+            <div className="mt-2 text-center text-[10px] text-red-400">
+              VIX indisponível
+            </div>
+          )}
         </div>
 
-        <div className="relative flex min-h-[160px] items-center justify-center overflow-hidden">
+        <div className="relative flex min-h-[110px] items-center justify-center overflow-hidden">
           <img
             src={royalLondon}
             alt=""
             aria-hidden="true"
-            className="pointer-events-none h-full w-full object-contain object-center"
-            style={{ opacity: 0.75 }}
+            className="pointer-events-none h-[110px] w-auto object-contain object-center"
+            style={{ opacity: 1.95 }}
           />
         </div>
 
-        <div className="min-h-[160px] rounded-2xl border border-[#4a4a4a] bg-black p-4">
-          <div className="text-center text-base font-bold text-foreground">ADX (2H)</div>
-          <div className="mt-3 text-center text-4xl font-bold tabular-nums text-emerald-400">
-            {adxLoading && adx == null ? "—" : adx != null ? adx.toFixed(2) : "—"}
+        <div className="min-h-[110px]  rounded-2xl border border-[#4a4a4a] bg-black p-4">
+          <div className="text-center text-base font-bold text-cyan-300">
+            ADX (2H)
+          </div>
+          <div className="mt-3 text-center text-4xl font-bold tabular-nums text-emerald-600">
+            {adxLoading && adx == null
+              ? "—"
+              : adx != null
+                ? adx.toFixed(2)
+                : "—"}
           </div>
           <div className="mt-4">
             <div className="h-3 overflow-hidden rounded-full bg-[#4a4a4a]">
               <div
-                className="h-full rounded-full bg-emerald-400 transition-[width] duration-500"
+                className="h-full rounded-full bg-emerald-600 transition-[width] duration-500"
                 style={{ width: `${adxState?.fillPercent ?? 0}%` }}
               />
             </div>
@@ -1184,12 +1385,12 @@ function MacroVolatilityCard({
       <div
         className={`relative z-10 mt-5 rounded-2xl border px-5 py-4 text-center text-xs font-bold leading-relaxed transition-colors duration-500 ${diagnostic?.className ?? "border-[#4a4a4a] bg-[#101217] text-muted-foreground"}`}
       >
-        {diagnostic?.text ?? "DIAGNÓSTICO OPERACIONAL: AGUARDANDO LEITURA DO VIX."}
+        {diagnostic?.text ??
+          "DIAGNÓSTICO OPERACIONAL: AGUARDANDO LEITURA DO VIX."}
       </div>
     </div>
   );
 }
-
 
 export default function App() {
   return <Gate />;
