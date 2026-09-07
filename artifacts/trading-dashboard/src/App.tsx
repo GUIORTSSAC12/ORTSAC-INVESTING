@@ -980,7 +980,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
               macroVolatilityRef={macroVolatilityRef}
             />
             <div className="grid grid-cols-2 gap-2">
-              <CloseInCard title="TOPOS/FUNDOS 2H" value={closeIn2h} />
+              <ToposFundosCard />
               <CloseInCard title="2H FECHA EM" value={closeIn2h} />
             </div>
           </div>
@@ -1251,6 +1251,24 @@ function CloseInCard({ title, value }: { title: string; value: string }) {
       </div>
       <div className="mt-2 text-2xl font-bold tabular-nums text-foreground">
         {value}
+      </div>
+    </div>
+  );
+}
+
+function ToposFundosCard() {
+  return (
+    <div className="rounded-2xl border border-[#4a4a4a] bg-black p-5 shadow-sm text-center">
+      <div className="text-xs font-semibold uppercase tracking-wider text-blue-400">
+        TOPOS/FUNDOS 2H
+      </div>
+      <div className="relative mt-2 grid h-8 grid-cols-2">
+        <div aria-label="Área para fundo 2H" />
+        <div aria-label="Área para topo 2H" />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-[#4a4a4a]"
+        />
       </div>
     </div>
   );
