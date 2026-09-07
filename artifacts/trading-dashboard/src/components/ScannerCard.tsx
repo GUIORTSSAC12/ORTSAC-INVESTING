@@ -7,11 +7,27 @@ import {
   useGlobalAnimationClock,
 } from "./globalAnimationClock";
 
+// Imports da Engine de Vem de Cima, Vem de Baixo, Regras e Validação
+import * as VemDeCima from "../engine/vem-de-cima";
+import * as VemDeBaixo from "../engine/vem-de-baixo";
+import * as Regras from "../engine/Regras";
+import * as Validacao from "../engine/validação";
+
 interface ScannerCardProps {
   divRef?: React.RefObject<HTMLDivElement | null>;
   patternReport?: string | null;
   timeRemaining?: string | null;
   onPatternChange?: (report: string | null) => void;
+  
+  // Dados de mercado repassados em tempo real
+  atrAtual?: number;
+  posicaoCandle?: "ACIMA" | "ABAIXO";
+  corFundoMedia20?: "AZUL" | "VERMELHO";
+  candleFechado?: boolean;
+  teveToqueNa99?: boolean;
+  precoAtual?: number;
+  maximaCandle?: number;
+  minimaCandle?: number;
 }
 
 export default function ScannerCard({
@@ -19,18 +35,47 @@ export default function ScannerCard({
   patternReport = null,
   timeRemaining = "02:00:00",
   onPatternChange,
+  atrAtual = 0.400,
+  posicaoCandle = "ACIMA",
+  corFundoMedia20 = "AZUL",
+  candleFechado = true,
+  teveToqueNa99 = true,
+  precoAtual = 100.0,
+  maximaCandle = 100.5,
+  minimaCandle = 99.5,
 }: ScannerCardProps) {
   const globalAnimationNow = useGlobalAnimationClock();
   const animationProgress = getGlobalAnimationProgress(globalAnimationNow);
   const dotStep = getGlobalDotStep(globalAnimationNow);
+  
   const [testReport, setTestReport] = useState<string | null>(null);
-
   const [confirmedReport, setConfirmedReport] = useState<string | null>(null);
   const [isConfirmed, setIsConfirmed] = useState(false);
+
+  // Estados locais para persistir a memória de certas estratégias
+  const [estadoEst6Cima, setEstadoEst6Cima] = useState<VemDeCima.EstadoEstrategia6>({
+    fase: "AGUARDANDO_ATIVACAO"
+  });
+  const [atrRefCima2, setAtrRefCima2] = useState<number | undefined>(undefined);
+  const [atrRefCima4, setAtrRefCima4] = useState<number | undefined>(undefined);
+
+  const [estadoEst1Baixo, setEstadoEst1Baixo] = useState<VemDeBaixo.EstadoEstrategia1VemDeBaixo>({
+    fase: "MONITORANDO_TOPO"
+  });
+  const [estadoEst3Baixo, setEstadoEst3Baixo] = useState<VemDeBaixo.EstadoEstrategia3VemDeBaixo>({
+    fase: "MONITORANDO_MAXIMA"
+  });
+  const [estadoEst4Baixo, setEstadoEst4Baixo] = useState<VemDeBaixo.EstadoEstrategia4VemDeBaixo>({
+    fase: "MONITORANDO_FUNDO"
+  });
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const hasAlertedRef = useRef(false);
+  const onPatternChangeRef = useRef(onPatternChange);
+  const patternReportRef = useRef(patternReport);
+  onPatternChangeRef.current = onPatternChange;
+  patternReportRef.current = patternReport;
 
   const testIndexRef = useRef(0);
   const [displayIndex, setDisplayIndex] = useState(0);
@@ -44,24 +89,14 @@ export default function ScannerCard({
   }, []);
 
   const getMinutesRemaining = (timeStr: string | null): number => {
-    if (!timeStr) {
-      return 999;
-    }
-
+    if (!timeStr) return 999;
     const parts = timeStr.split(":").map(Number);
-
-    if (parts.length === 3) {
-      return parts[0] * 60 + parts[1] + parts[2] / 60;
-    }
-
-    if (parts.length === 2) {
-      return parts[0] + parts[1] / 60;
-    }
-
+    if (parts.length === 3) return parts[0] * 60 + parts[1] + parts[2] / 60;
+    if (parts.length === 2) return parts[0] + parts[1] / 60;
     return 999;
   };
 
-  // Monitora o tempo restante para disparar o som nos últimos 10 minutos
+  // Dispara o som nos últimos 10 minutos
   useEffect(() => {
     const mins = getMinutesRemaining(timeRemaining);
     if (mins <= 10 && mins > 0) {
@@ -74,33 +109,220 @@ export default function ScannerCard({
     }
   }, [timeRemaining]);
 
+  // ==========================================
+  // LOOP DE VARREDURA REAL DAS ESTRATÉGIAS DA ENGINE
+  // ==========================================
   useEffect(() => {
-    if (incomingReport === null || incomingReport === "") {
-      return;
-    }
+    if (testReport !== null) return; // Se houver teste manual ativo, pausa o automático
+    // Se já estiver confirmado exibindo um sinal, pausa novas varreduras para o timer de 10 min correr solto
+    if (isConfirmed) return; 
 
-    setConfirmedReport(incomingReport);
+    const monitoringInterval = setInterval(() => {
+      try {
+        // ==========================================
+        // CAMADA 1: O VALIDAÇÃO.TS RODA PRIMEIRO
+        // ==========================================
+        const validacaoToque = Validacao.validarToqueGlobal2H({
+          corFundoMedia20Grafico2H: corFundoMedia20,
+          posicaoMercado: posicaoCandle,
+          teveToqueNa99: teveToqueNa99,
+          candleFechado: candleFechado,
+          respiroCandleOk: true,
+          atrAtual: atrAtual,
+        });
+
+        if (!validacaoToque.valido) return;
+
+        // ==========================================
+        // CAMADA 2: O REGRAS.TS RODA EM SEGUIDA (Contexto e Soberania)
+        // ==========================================
+        const resultadoRegras = Regras.verificarRestricoesGlobais2H({
+          candleFechado: candleFechado,
+          statusBanner: "MERCADO_ABERTO",
+          diaDaSemana: "QUARTA",
+          operacaoAberta: false,
+        });
+
+        if (!resultadoRegras.permitido) return;
+
+        let mensagemAtiva: string | null = null;
+
+        // ==========================================
+        // CAMADA 3: DISPARO DA ENGINE USANDO A DIREÇÃO APROVADA
+        // ==========================================
+        if (validacaoToque.direcao === "VEM_DE_CIMA") {
+          const toqueCima = teveToqueNa99;
+
+          // Estratégia 1: Vem de Cima
+          const res1Cima = VemDeCima.processarEstrategia1VemDeCima({
+            teveToqueNa99DeCima: toqueCima,
+            atrAtual,
+          });
+          if (res1Cima.acao !== "IGNORADO") {
+            mensagemAtiva = `[VEM DE CIMA] - ${res1Cima.status} (Região: ${validacaoToque.regiaoAtr})`;
+          }
+
+          // Estratégia 2: Vem de Cima
+          const res2Cima = VemDeCima.processarEstrategia2VemDeCima({
+            teveToqueNa99DeCima: toqueCima,
+            atrAtual,
+            atrReferenciaSalvo: atrRefCima2,
+            proximoCandleFechado: candleFechado,
+          });
+          if (res2Cima.novoAtrReferencia !== undefined) setAtrRefCima2(res2Cima.novoAtrReferencia);
+          if (res2Cima.limparReferencia) setAtrRefCima2(undefined);
+          if (res2Cima.acao !== "IGNORADO") {
+            mensagemAtiva = `[VEM DE CIMA] - ${res2Cima.status} (Região: ${validacaoToque.regiaoAtr})`;
+          }
+
+          // Estratégia 3: Vem de Cima (Zona de Exclusão)
+          const res3Cima = VemDeCima.processarEstrategia3VemDeCima({
+            teveToqueNa99DeCima: toqueCima,
+            atrAtual,
+          });
+          if (res3Cima.acao !== "IGNORADO") {
+            mensagemAtiva = `[VEM DE CIMA] - ${res3Cima.status} (Região: ${validacaoToque.regiaoAtr})`;
+          }
+
+          // Estratégia 4: Vem de Cima (Reversão de Fluxo)
+          const res4Cima = VemDeCima.processarEstrategia4VemDeCima({
+            teveToqueNa99DeCima: toqueCima,
+            atrAtual,
+            atrReferenciaSalvo: atrRefCima4,
+            proximoCandleFechado: candleFechado,
+          });
+          if (res4Cima.novoAtrReferencia !== undefined) setAtrRefCima4(res4Cima.novoAtrReferencia);
+          if (res4Cima.limparReferencia) setAtrRefCima4(undefined);
+          if (res4Cima.acao !== "IGNORADO") {
+            mensagemAtiva = `[VEM DE CIMA] - ${res4Cima.status} (Região: ${validacaoToque.regiaoAtr})`;
+          }
+
+          // Estratégia 5: Vem de Cima
+          const res5Cima = VemDeCima.processarEstrategia5VemDeCima({
+            teveToqueNa99DeCima: toqueCima,
+            atrAtual2H: atrAtual,
+            atrAnterior2H: atrAtual - 0.01,
+            fechamentoCorpoAbaixoDaMedia99: precoAtual < 100,
+          });
+          if (res5Cima.acao !== "IGNORADO") {
+            mensagemAtiva = `[VEM DE CIMA] - ${res5Cima.status} (Região: ${validacaoToque.regiaoAtr})`;
+          }
+
+          // Estratégia 6: Vem de Cima (Reteste de Topo Dinâmico)
+          const res6Cima = VemDeCima.processarEstrategia6VemDeCima({
+            teveToqueNa99DeCima: toqueCima,
+            atrAtual,
+            precoAtual,
+            maximaCandleToque: maximaCandle,
+            minimaCandleToque: minimaCandle,
+            estadoAtual: estadoEst6Cima,
+          });
+          setEstadoEst6Cima(res6Cima.novoEstado);
+          if (res6Cima.acao !== "IGNORADO") {
+            mensagemAtiva = `[VEM DE CIMA] - ${res6Cima.status} (Região: ${validacaoToque.regiaoAtr})`;
+          }
+
+        } 
+        else if (validacaoToque.direcao === "VEM_DE_BAIXO") {
+          const toqueBaixo = teveToqueNa99;
+
+          // Estratégia 1: Vem de Baixo
+          const res1Baixo = VemDeBaixo.processarEstrategia1VemDeBaixo({
+            teveToqueNa99DeBaixo: toqueBaixo,
+            atrAtual,
+            precoAtual,
+            maximaCandleAtual: maximaCandle,
+            estadoAtual: estadoEst1Baixo,
+          });
+          setEstadoEst1Baixo(res1Baixo.novoEstado);
+          if (res1Baixo.acao !== "IGNORADO") {
+            mensagemAtiva = `[VEM DE BAIXO] - ${res1Baixo.status} (Região: ${validacaoToque.regiaoAtr})`;
+          }
+
+          // Estratégia 2: Vem de Baixo
+          const res2Baixo = VemDeBaixo.processarEstrategia2VemDeBaixo({
+            teveToqueNa99DeBaixo: toqueBaixo,
+            atrAtual,
+            toqueOcorreuNoCandleAberto: !candleFechado,
+            corpoInstitucionalInteiroAcimaDa20: true,
+            corpoInstitucionalAbaixoDa99: true,
+            media20TocouCorpoInstitucional: false,
+          });
+          if (res2Baixo.acao !== "IGNORADO") {
+            mensagemAtiva = `[VEM DE BAIXO] - ${res2Baixo.status} (Região: ${validacaoToque.regiaoAtr})`;
+          }
+
+          // Estratégia 3: Vem de Baixo
+          const res3Baixo = VemDeBaixo.processarEstrategia3VemDeBaixo({
+            teveToqueNa99DeBaixo: toqueBaixo,
+            atrAtual,
+            precoAtual,
+            maximaCandleAtual: maximaCandle,
+            estadoAtual: estadoEst3Baixo,
+          });
+          setEstadoEst3Baixo(res3Baixo.novoEstado);
+          if (res3Baixo.acao !== "IGNORADO") {
+            mensagemAtiva = `[VEM DE BAIXO] - ${res3Baixo.status} (Região: ${validacaoToque.regiaoAtr})`;
+          }
+
+          // Estratégia 4: Vem de Baixo
+          const res4Baixo = VemDeBaixo.processarEstrategia4VemDeBaixo({
+            teveToqueNa99DeBaixo: toqueBaixo,
+            atrAtual,
+            precoAtual,
+            minimaCandleAnterior: minimaCandle,
+            media20AbaixoDoCorpo: true,
+            media20TocouApenasPavio: false,
+            estadoAtual: estadoEst4Baixo,
+          });
+          setEstadoEst4Baixo(res4Baixo.novoEstado);
+          if (res4Baixo.acao !== "IGNORADO") {
+            mensagemAtiva = `[VEM DE BAIXO] - ${res4Baixo.status} (Região: ${validacaoToque.regiaoAtr})`;
+          }
+        }
+
+        // Se encontrou alguma mensagem ativa na engine, converte para maiúscula e aplica
+        if (mensagemAtiva) {
+          const mensagemMaiuscula = mensagemAtiva.toUpperCase();
+          setConfirmedReport(mensagemMaiuscula);
+          setIsConfirmed(true);
+          onPatternChange?.(mensagemMaiuscula);
+        }
+
+      } catch (err) {
+        console.error("Erro no loop de varredura do ScannerCard:", err);
+      }
+    }, 2000);
+
+    return () => clearInterval(monitoringInterval);
+  }, [testReport, isConfirmed, atrAtual, posicaoCandle, corFundoMedia20, candleFechado, teveToqueNa99, precoAtual, maximaCandle, minimaCandle, estadoEst6Cima, estadoEst1Baixo, estadoEst3Baixo, estadoEst4Baixo, atrRefCima2, atrRefCima4, onPatternChange]);
+
+  // ==========================================
+  // GERENCIAMENTO DO TEMPORIZADOR DE 10 MINUTOS
+  // ==========================================
+  useEffect(() => {
+    const reportToConfirm = confirmedReport ?? incomingReport;
+    if (reportToConfirm === null || reportToConfirm === "") return;
+
+    const mensagemMaiuscula = reportToConfirm.toUpperCase();
+    setConfirmedReport(mensagemMaiuscula);
     setIsConfirmed(true);
-    onPatternChange?.(incomingReport);
+    onPatternChangeRef.current?.(mensagemMaiuscula);
 
     if (timerRef.current !== null) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
     }
 
-    // Se estiver no estado de AGUARDAR, o card NÃO expira em 10 minutos
-    const isAguardando = incomingReport.toUpperCase().includes("AGUARDAR");
+    const contemAguardar = mensagemMaiuscula.includes("AGUARDAR");
 
-    if (!isAguardando) {
+    // Se contém AGUARDAR, o temporizador de 10 minutos é ignorado e o card fica trancado
+    if (!contemAguardar) {
       timerRef.current = setTimeout(() => {
         setIsConfirmed(false);
         setConfirmedReport(null);
-
-        if (patternReport === null) {
-          setTestReport(null);
-        }
-
-        onPatternChange?.(null);
+        if (patternReportRef.current === null) setTestReport(null);
+        onPatternChangeRef.current?.(null);
         timerRef.current = null;
       }, 10 * 60 * 1000);
     }
@@ -111,7 +333,7 @@ export default function ScannerCard({
         timerRef.current = null;
       }
     };
-  }, [incomingReport, patternReport, onPatternChange]);
+  }, [confirmedReport, incomingReport]);
 
   useEffect(() => {
     return () => {
@@ -122,67 +344,29 @@ export default function ScannerCard({
     };
   }, []);
 
-  const renderDots = () => {
-    return (
-      <span className="inline-flex items-center ml-1 space-x-1">
-        <span
-          className={`h-1.5 w-1.5 rounded-full transition-opacity duration-200 ${
-            dotStep === 1
-              ? "bg-cyan-300 opacity-100 shadow-[0_0_8px_#22d3ee]"
-              : "bg-cyan-800 opacity-30"
-          }`}
-        />
-        <span
-          className={`h-1.5 w-1.5 rounded-full transition-opacity duration-200 ${
-            dotStep === 2
-              ? "bg-cyan-300 opacity-100 shadow-[0_0_8px_#22d3ee]"
-              : "bg-cyan-800 opacity-30"
-          }`}
-        />
-        <span
-          className={`h-1.5 w-1.5 rounded-full transition-opacity duration-200 ${
-            dotStep === 3
-              ? "bg-cyan-300 opacity-100 shadow-[0_0_8px_#22d3ee]"
-              : "bg-cyan-800 opacity-30"
-          }`}
-        />
-      </span>
-    );
-  };
+  const renderDots = () => (
+    <span className="inline-flex items-center ml-1 space-x-1">
+      <span className={`h-1.5 w-1.5 rounded-full transition-opacity duration-200 ${dotStep === 1 ? "bg-cyan-300 opacity-100 shadow-[0_0_8px_#22d3ee]" : "bg-cyan-800 opacity-30"}`} />
+      <span className={`h-1.5 w-1.5 rounded-full transition-opacity duration-200 ${dotStep === 2 ? "bg-cyan-300 opacity-100 shadow-[0_0_8px_#22d3ee]" : "bg-cyan-800 opacity-30"}`} />
+      <span className={`h-1.5 w-1.5 rounded-full transition-opacity duration-200 ${dotStep === 3 ? "bg-cyan-300 opacity-100 shadow-[0_0_8px_#22d3ee]" : "bg-cyan-800 opacity-30"}`} />
+    </span>
+  );
 
-  // Ciclo de testes onde o ScannerCard define explicitamente a direção (Venda Direta / Compra Direta / Aguardar)
   const cycleTest = () => {
     const nextIndex = (testIndexRef.current + 1) % 8;
     testIndexRef.current = nextIndex;
     setDisplayIndex(nextIndex);
 
     let reportResult: string | null = null;
-
     switch (nextIndex) {
-      case 1:
-        reportResult = "VEM DE CIMA - ESTRATÉGIA 4 (AGUARDAR)";
-        break;
-      case 2:
-        reportResult = "VEM DE CIMA - ESTRATÉGIA 2 (AGUARDAR)";
-        break;
-      case 3:
-        reportResult = "VEM DE BAIXO - ESTRATÉGIA 1 (AGUARDAR)";
-        break;
-      case 4:
-        // Venda Direta identificada pelo Scanner
-        reportResult = "VEM DE CIMA - ESTRATÉGIA 6 - VENDA DIRETA";
-        break;
-      case 5:
-        // Compra Direta identificada pelo Scanner (para testar o Swap para a fila de pendentes)
-        reportResult = "VEM DE CIMA - ESTRATÉGIA 1 - COMPRA DIRETA";
-        break;
-      case 6:
-        reportResult = "VEM DE BAIXO - ESTRATÉGIA 3 (AGUARDAR)";
-        break;
+      case 1: reportResult = "[VEM DE CIMA] - Estratégia 1: Compra Confirmada"; break;
+      case 2: reportResult = "[VEM DE CIMA] - Estratégia 2: Venda Confirmada"; break;
+      case 3: reportResult = "[VEM DE BAIXO] - Estratégia 3: Zona de Exclusão. Aguardar"; break;
+      case 4: reportResult = "[VEM DE CIMA] - Estratégia 6: Venda Confirmada no Topo Dinâmico"; break;
+      case 5: reportResult = "[VEM DE BAIXO] - Estratégia 1: Topo Marcado. Aguardar"; break;
+      case 6: reportResult = "[VEM DE CIMA] - Estratégia 5: Gráfico 4H - Aguardar Toque na Média 99"; break;
       case 7:
-      default:
-        reportResult = null; // Volta a monitorar
-        break;
+      default: reportResult = null; break;
     }
 
     if (timerRef.current !== null) {
@@ -190,27 +374,28 @@ export default function ScannerCard({
       timerRef.current = null;
     }
 
-    setTestReport(reportResult);
+    const finalResult = reportResult ? reportResult.toUpperCase() : null;
+    setTestReport(finalResult);
 
-    if (reportResult === null) {
+    if (finalResult === null) {
       setIsConfirmed(false);
       setConfirmedReport(null);
       onPatternChange?.(null);
     } else {
-      setConfirmedReport(reportResult);
+      setConfirmedReport(finalResult);
       setIsConfirmed(true);
-      onPatternChange?.(reportResult);
+      onPatternChange?.(finalResult);
     }
   };
 
   const getButtonLabel = () => {
     if (displayIndex === 0) return "Monitorando";
-    if (displayIndex === 1) return "Est. 4 (Aguardar)";
-    if (displayIndex === 2) return "Est. 2 (Aguardar)";
-    if (displayIndex === 3) return "Est. 1 (Aguardar)";
-    if (displayIndex === 4) return "Venda Direta (Est. 6)";
-    if (displayIndex === 5) return "Compra Direta (Est. 1)";
-    if (displayIndex === 6) return "Est. 3 (Aguardar)";
+    if (displayIndex === 1) return "Cima - Est.1 (Compra)";
+    if (displayIndex === 2) return "Cima - Est.2 (Venda)";
+    if (displayIndex === 3) return "Baixo - Est.3 (Aguardar)";
+    if (displayIndex === 4) return "Cima - Est.6 (Venda)";
+    if (displayIndex === 5) return "Baixo - Est.1 (Aguardar)";
+    if (displayIndex === 6) return "Cima - Est.5 (4H)";
     return "Zerar";
   };
 
@@ -228,40 +413,21 @@ export default function ScannerCard({
 
       <div className="relative z-10 flex flex-col h-full space-y-3">
         <div>
-          <span
-            style={{ fontSize: "16px" }}
-            className="font-bold tracking-wider text-cyan-400 uppercase block"
-          >
+          <span style={{ fontSize: "16px" }} className="font-bold tracking-wider text-cyan-400 uppercase block">
             SCANNER
           </span>
 
           <div className="flex items-center mt-1">
-            <h2
-              className={`text-lg md:text-xl font-bold tracking-wider transition-colors duration-300 ${
-                isConfirmed
-                  ? "text-emerald-400 drop-shadow-[0_0_10px_#34d399]"
-                  : "text-cyan-300 drop-shadow-[0_0_10px_#22d3ee]"
-              }`}
-            >
-              {isConfirmed
-                ? "PADRÃO CONFIRMADO"
-                : "MONITORANDO PADRÃO"}
+            <h2 className={`text-lg md:text-xl font-bold tracking-wider transition-colors duration-300 ${isConfirmed ? "text-emerald-400 drop-shadow-[0_0_10px_#34d399]" : "text-cyan-300 drop-shadow-[0_0_10px_#22d3ee]"}`}>
+              {isConfirmed ? "PADRÃO CONFIRMADO" : "MONITORANDO PADRÃO"}
             </h2>
-
             {!isConfirmed && renderDots()}
           </div>
         </div>
 
         <div className="w-full">
           <div className="relative w-full h-2 flex items-center">
-            <div
-              className={`absolute inset-0 h-1.5 rounded-full transition-colors duration-300 ${
-                isConfirmed
-                  ? "bg-emerald-400 shadow-[0_0_12px_#34d399]"
-                  : "bg-cyan-400 shadow-[0_0_12px_#22d3ee]"
-              }`}
-            />
-
+            <div className={`absolute inset-0 h-1.5 rounded-full transition-colors duration-300 ${isConfirmed ? "bg-emerald-400 shadow-[0_0_12px_#34d399]" : "bg-cyan-400 shadow-[0_0_12px_#22d3ee]"}`} />
             {!isConfirmed && (
               <div
                 className="absolute h-3.5 w-3.5 rounded-full bg-white shadow-[0_0_14px_#22d3ee]"
@@ -277,7 +443,7 @@ export default function ScannerCard({
 
         {isConfirmed && (
           <div className="py-1">
-            <p className="font-mono text-sm md:text-base font-bold text-emerald-300 tracking-wider drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
+            <p className="font-mono text-xs md:text-sm font-bold text-emerald-300 tracking-wider drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] leading-tight uppercase">
               {confirmedReport}
             </p>
           </div>
@@ -290,13 +456,12 @@ export default function ScannerCard({
 
           <button
             onClick={cycleTest}
-            className="text-[9px] font-mono px-2 py-0.5 bg-black/60 border border-cyan-500/30 text-cyan-400 rounded hover:bg-cyan-900/80 transition-colors"
+            className="text-[9px] font-mono px-2 py-0.5 bg-black/60 border border-cyan-500/30 text-cyan-400 rounded hover:bg-cyan-900/80 transition-colors uppercase"
           >
             [Testar: {getButtonLabel()}]
           </button>
         </div>
       </div>
-
     </div>
   );
 }

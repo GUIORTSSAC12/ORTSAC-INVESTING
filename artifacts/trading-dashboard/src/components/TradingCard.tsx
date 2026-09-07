@@ -36,7 +36,7 @@ export default function TradingCard({
 
   const fontSizeConfig = {
     cardTitle: '16px',
-    statusText: '18px',
+    statusText: '20px',
     labelPx: '18px',
     valuePx: '18px',
   };
@@ -74,7 +74,7 @@ export default function TradingCard({
     }
   }, [pendingStrategy, onPendingChange]);
 
-  // Processamento principal do sinal vindo do ScannerCard (Sem loops!)
+  // Processamento principal estritamente baseado no sinal recebido do ScannerCard
   useEffect(() => {
     if (!incomingReport) {
       return;
@@ -103,66 +103,51 @@ export default function TradingCard({
       isSell = false; 
     }
 
+    // Identificação de venda explícita no relatório
+    if (reportUpper.includes("VENDA")) {
+      isSell = true;
+    } else if (reportUpper.includes("COMPRA")) {
+      isSell = false;
+    }
+
     let gainPctNum = 0.70;
     if (baseStratTitle.includes("6")) {
       gainPctNum = 1.00; 
     }
 
     const isProtected = isInstitutionalActive || reportUpper.includes("PROTEGIDO");
+    const stopPct = isProtected ? 0.50 : 0.35;
 
-    let sText = "STOP (-0,35%)";
-    let sClass = "text-red-500";
-    let sVal = 0;
+    let sText = `STOP (-${stopPct.toFixed(2)}%)`;
 
-    if (isSell) {
-      if (isProtected) {
-        sText = "STOP (-0,50%)";
-        sVal = Math.round(basePrice * (1 + 0.50 / 100));
-      } else {
-        sText = "STOP (-0,35%)";
-        sVal = Math.round(basePrice * (1 + 0.35 / 100));
-      }
-    } else {
-      if (isProtected) {
-        sText = "STOP (-0,50%)";
-        sVal = Math.round(basePrice * (1 - 0.50 / 100));
-      } else {
-        sText = "STOP (-0,35%)";
-        sVal = Math.round(basePrice * (1 - 0.35 / 100));
-      }
-    }
-
+    // CORREÇÃO DO CÁLCULO DO STOP (Antes estava fixado em 0)
+    const sVal = Math.round(basePrice * (isSell ? (1 + stopPct / 100) : (1 - stopPct / 100)));
     const gVal = Math.round(basePrice * (isSell ? (1 - gainPctNum / 100) : (1 + gainPctNum / 100)));
 
     const newCalculatedData: TradeStrategy = {
       type: isSell ? 'VENDA' : 'COMPRA',
-      title: baseStratTitle,
+      title: baseStratTitle.toUpperCase(),
       entry: Math.round(basePrice),
       stopVal: sVal,
       gainVal: gVal,
       stopText: sText,
-      stopClass: sClass,
+      stopClass: "text-red-500", // Stop é sempre vermelho indicando risco/perda
       gainText: `GAIN (+${gainPctNum.toFixed(2)}%)`,
     };
 
-    // Usamos o setter funcional para checar o estado anterior sem precisar dele no array de dependências
     setActiveStrategy(currentActive => {
-      // Se já for a mesma estratégia, não mexe em nada
       if (currentActive && currentActive.title === baseStratTitle) {
         return currentActive;
       }
 
-      // SWAP: Se houver estratégia ativa diferente, joga para os pendentes
       if (currentActive) {
         setPendingStrategy({
-          reportName: baseStratTitle, // ou o nome anterior
+          reportName: baseStratTitle,
           data: currentActive
         });
       }
 
-      // Toca o som apenas quando o foco muda de verdade
       playSound();
-
       return newCalculatedData;
     });
 
@@ -170,14 +155,13 @@ export default function TradingCard({
 
   }, [incomingReport, basePrice, isInstitutionalActive]);
 
-  // Ação de resgatar o pendente para o TradingCard (Aqui faz barulho, pois o pendente virou foco!)
   const handleResetCard = () => {
     if (pendingStrategy) {
       setActiveStrategy(pendingStrategy.data);
       setActiveReportName(pendingStrategy.reportName);
       setPendingStrategy(null);
       lastStopTextRef.current = pendingStrategy.data.stopText;
-      playSound(); // Faz barulho ao reativar o trade que estava na fila
+      playSound(); 
     } else {
       setActiveStrategy(null);
       setActiveReportName(null);
@@ -213,11 +197,11 @@ export default function TradingCard({
         <div className="flex justify-between items-start">
           <div>
             <span style={{ fontSize: fontSizeConfig.cardTitle }} className="font-bold tracking-wider text-cyan-400 uppercase block">
-              TRADING {pendingStrategy && <span className="text-[10px] text-amber-400 font-mono">[PENDENTE NA FILA]</span>}
+              TRADING {pendingStrategy && <span className="text-[10px] text-amber-400 font-mono uppercase">[PENDENTE NA FILA]</span>}
             </span>
 
             <div className="flex items-center mt-1">
-              <h2 style={{ fontSize: fontSizeConfig.statusText }} className={`font-bold tracking-wider transition-colors duration-300 ${statusColor}`}>
+              <h2 style={{ fontSize: fontSizeConfig.statusText }} className={`font-bold tracking-wider uppercase transition-colors duration-300 ${statusColor}`}>
                 {isConfirmed ? `${activeStrategy?.type} CONFIRMADA` : 'MONITORANDO SCANNER'}
               </h2>
               {!isConfirmed && (
@@ -234,7 +218,7 @@ export default function TradingCard({
             <button 
               onClick={handleResetCard}
               title="Zerar ou Resgatar Pendente"
-              className="text-[9px] font-mono px-2 py-1 bg-red-950/80 border border-red-500/40 text-red-300 rounded hover:bg-red-900 transition-colors"
+              className="text-[9px] font-mono px-2 py-1 bg-red-950/80 border border-red-500/40 text-red-300 rounded hover:bg-red-900 transition-colors uppercase"
             >
               [Zerar / Swap]
             </button>
@@ -258,7 +242,7 @@ export default function TradingCard({
         </div>
 
         {isConfirmed && activeStrategy ? (
-          <div className="flex flex-col space-y-1.5 py-1 font-mono">
+          <div className="flex flex-col space-y-1.5 py-1 font-mono uppercase">
             <div className="text-[10px] text-cyan-300 font-bold truncate mb-1">
               FOCO: {activeReportName}
             </div>
@@ -299,7 +283,7 @@ export default function TradingCard({
             [Módulo de Execução]
           </div>
 
-          <div className="text-[9px] font-mono text-cyan-400">
+          <div className="text-[9px] font-mono text-cyan-400 uppercase">
             {isConfirmed ? "[Ativo]" : "[Aguardando Sinal]"}
           </div>
         </div>
