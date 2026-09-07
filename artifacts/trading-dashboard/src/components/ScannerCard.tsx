@@ -21,13 +21,24 @@ interface ScannerCardProps {
   
   // Dados de mercado repassados em tempo real
   atrAtual?: number;
-  posicaoCandle?: "ACIMA" | "ABAIXO";
   corFundoMedia20?: "AZUL" | "VERMELHO";
   candleFechado?: boolean;
   teveToqueNa99?: boolean;
   precoAtual?: number;
+  valorMedia99?: number; // Adicionado para a conferência matemática exata
   maximaCandle?: number;
   minimaCandle?: number;
+}
+
+function formatStrategyMessage(
+  direcao: "VEM DE CIMA" | "VEM DE BAIXO",
+  resultado: { status: string; acao?: string | null },
+  regiaoAtr: string,
+): string | null {
+  const acao = resultado.acao?.trim().toUpperCase();
+  if (!acao || acao.startsWith("IGNOR")) return null;
+
+  return `[${direcao}] - ${resultado.status} (Região: ${regiaoAtr}) | AÇÃO: ${acao}`;
 }
 
 export default function ScannerCard({
@@ -36,11 +47,11 @@ export default function ScannerCard({
   timeRemaining = "02:00:00",
   onPatternChange,
   atrAtual = 0.400,
-  posicaoCandle = "ACIMA",
   corFundoMedia20 = "AZUL",
   candleFechado = true,
   teveToqueNa99 = true,
-  precoAtual = 100.0,
+  precoAtual = 209.022,
+  valorMedia99 = 213.338,
   maximaCandle = 100.5,
   minimaCandle = 99.5,
 }: ScannerCardProps) {
@@ -114,17 +125,17 @@ export default function ScannerCard({
   // ==========================================
   useEffect(() => {
     if (testReport !== null) return; // Se houver teste manual ativo, pausa o automático
-    // Se já estiver confirmado exibindo um sinal, pausa novas varreduras para o timer de 10 min correr solto
-    if (isConfirmed) return; 
+    if (isConfirmed) return; // Se já estiver confirmado, pausa novas varreduras
 
     const monitoringInterval = setInterval(() => {
       try {
         // ==========================================
-        // CAMADA 1: O VALIDAÇÃO.TS RODA PRIMEIRO
+        // CAMADA 1: O VALIDAÇÃO.TS RODA PRIMEIRO (COM PREÇO EM TEMPO REAL)
         // ==========================================
         const validacaoToque = Validacao.validarToqueGlobal2H({
           corFundoMedia20Grafico2H: corFundoMedia20,
-          posicaoMercado: posicaoCandle,
+          precoAtualMercado: precoAtual,
+          valorMedia99Grafico2H: valorMedia99,
           teveToqueNa99: teveToqueNa99,
           candleFechado: candleFechado,
           respiroCandleOk: true,
@@ -145,22 +156,28 @@ export default function ScannerCard({
 
         if (!resultadoRegras.permitido) return;
 
-        let mensagemAtiva: string | null = null;
+        const mensagemAtiva = { value: null as string | null };
 
         // ==========================================
         // CAMADA 3: DISPARO DA ENGINE USANDO A DIREÇÃO APROVADA
         // ==========================================
         if (validacaoToque.direcao === "VEM_DE_CIMA") {
           const toqueCima = teveToqueNa99;
+          const aplicarResultado = (resultado: { status: string; acao?: string | null }) => {
+            const mensagem = formatStrategyMessage(
+              "VEM DE CIMA",
+              resultado,
+              validacaoToque.regiaoAtr,
+            );
+            if (mensagem) mensagemAtiva.value = mensagem;
+          };
 
           // Estratégia 1: Vem de Cima
           const res1Cima = VemDeCima.processarEstrategia1VemDeCima({
             teveToqueNa99DeCima: toqueCima,
             atrAtual,
           });
-          if (res1Cima.acao !== "IGNORADO") {
-            mensagemAtiva = `[VEM DE CIMA] - ${res1Cima.status} (Região: ${validacaoToque.regiaoAtr})`;
-          }
+          aplicarResultado(res1Cima);
 
           // Estratégia 2: Vem de Cima
           const res2Cima = VemDeCima.processarEstrategia2VemDeCima({
@@ -171,18 +188,14 @@ export default function ScannerCard({
           });
           if (res2Cima.novoAtrReferencia !== undefined) setAtrRefCima2(res2Cima.novoAtrReferencia);
           if (res2Cima.limparReferencia) setAtrRefCima2(undefined);
-          if (res2Cima.acao !== "IGNORADO") {
-            mensagemAtiva = `[VEM DE CIMA] - ${res2Cima.status} (Região: ${validacaoToque.regiaoAtr})`;
-          }
+          aplicarResultado(res2Cima);
 
           // Estratégia 3: Vem de Cima (Zona de Exclusão)
           const res3Cima = VemDeCima.processarEstrategia3VemDeCima({
             teveToqueNa99DeCima: toqueCima,
             atrAtual,
           });
-          if (res3Cima.acao !== "IGNORADO") {
-            mensagemAtiva = `[VEM DE CIMA] - ${res3Cima.status} (Região: ${validacaoToque.regiaoAtr})`;
-          }
+          aplicarResultado(res3Cima);
 
           // Estratégia 4: Vem de Cima (Reversão de Fluxo)
           const res4Cima = VemDeCima.processarEstrategia4VemDeCima({
@@ -193,9 +206,7 @@ export default function ScannerCard({
           });
           if (res4Cima.novoAtrReferencia !== undefined) setAtrRefCima4(res4Cima.novoAtrReferencia);
           if (res4Cima.limparReferencia) setAtrRefCima4(undefined);
-          if (res4Cima.acao !== "IGNORADO") {
-            mensagemAtiva = `[VEM DE CIMA] - ${res4Cima.status} (Região: ${validacaoToque.regiaoAtr})`;
-          }
+          aplicarResultado(res4Cima);
 
           // Estratégia 5: Vem de Cima
           const res5Cima = VemDeCima.processarEstrategia5VemDeCima({
@@ -204,9 +215,7 @@ export default function ScannerCard({
             atrAnterior2H: atrAtual - 0.01,
             fechamentoCorpoAbaixoDaMedia99: precoAtual < 100,
           });
-          if (res5Cima.acao !== "IGNORADO") {
-            mensagemAtiva = `[VEM DE CIMA] - ${res5Cima.status} (Região: ${validacaoToque.regiaoAtr})`;
-          }
+          aplicarResultado(res5Cima);
 
           // Estratégia 6: Vem de Cima (Reteste de Topo Dinâmico)
           const res6Cima = VemDeCima.processarEstrategia6VemDeCima({
@@ -218,13 +227,19 @@ export default function ScannerCard({
             estadoAtual: estadoEst6Cima,
           });
           setEstadoEst6Cima(res6Cima.novoEstado);
-          if (res6Cima.acao !== "IGNORADO") {
-            mensagemAtiva = `[VEM DE CIMA] - ${res6Cima.status} (Região: ${validacaoToque.regiaoAtr})`;
-          }
+          aplicarResultado(res6Cima);
 
         } 
         else if (validacaoToque.direcao === "VEM_DE_BAIXO") {
           const toqueBaixo = teveToqueNa99;
+          const aplicarResultado = (resultado: { status: string; acao?: string | null }) => {
+            const mensagem = formatStrategyMessage(
+              "VEM DE BAIXO",
+              resultado,
+              validacaoToque.regiaoAtr,
+            );
+            if (mensagem) mensagemAtiva.value = mensagem;
+          };
 
           // Estratégia 1: Vem de Baixo
           const res1Baixo = VemDeBaixo.processarEstrategia1VemDeBaixo({
@@ -235,9 +250,7 @@ export default function ScannerCard({
             estadoAtual: estadoEst1Baixo,
           });
           setEstadoEst1Baixo(res1Baixo.novoEstado);
-          if (res1Baixo.acao !== "IGNORADO") {
-            mensagemAtiva = `[VEM DE BAIXO] - ${res1Baixo.status} (Região: ${validacaoToque.regiaoAtr})`;
-          }
+          aplicarResultado(res1Baixo);
 
           // Estratégia 2: Vem de Baixo
           const res2Baixo = VemDeBaixo.processarEstrategia2VemDeBaixo({
@@ -248,9 +261,7 @@ export default function ScannerCard({
             corpoInstitucionalAbaixoDa99: true,
             media20TocouCorpoInstitucional: false,
           });
-          if (res2Baixo.acao !== "IGNORADO") {
-            mensagemAtiva = `[VEM DE BAIXO] - ${res2Baixo.status} (Região: ${validacaoToque.regiaoAtr})`;
-          }
+          aplicarResultado(res2Baixo);
 
           // Estratégia 3: Vem de Baixo
           const res3Baixo = VemDeBaixo.processarEstrategia3VemDeBaixo({
@@ -261,9 +272,7 @@ export default function ScannerCard({
             estadoAtual: estadoEst3Baixo,
           });
           setEstadoEst3Baixo(res3Baixo.novoEstado);
-          if (res3Baixo.acao !== "IGNORADO") {
-            mensagemAtiva = `[VEM DE BAIXO] - ${res3Baixo.status} (Região: ${validacaoToque.regiaoAtr})`;
-          }
+          aplicarResultado(res3Baixo);
 
           // Estratégia 4: Vem de Baixo
           const res4Baixo = VemDeBaixo.processarEstrategia4VemDeBaixo({
@@ -276,14 +285,12 @@ export default function ScannerCard({
             estadoAtual: estadoEst4Baixo,
           });
           setEstadoEst4Baixo(res4Baixo.novoEstado);
-          if (res4Baixo.acao !== "IGNORADO") {
-            mensagemAtiva = `[VEM DE BAIXO] - ${res4Baixo.status} (Região: ${validacaoToque.regiaoAtr})`;
-          }
+          aplicarResultado(res4Baixo);
         }
 
-        // Se encontrou alguma mensagem ativa na engine, converte para maiúscula e aplica
-        if (mensagemAtiva) {
-          const mensagemMaiuscula = mensagemAtiva.toUpperCase();
+        const mensagemFinal = mensagemAtiva.value;
+        if (mensagemFinal) {
+          const mensagemMaiuscula = mensagemFinal.toUpperCase();
           setConfirmedReport(mensagemMaiuscula);
           setIsConfirmed(true);
           onPatternChange?.(mensagemMaiuscula);
@@ -295,7 +302,7 @@ export default function ScannerCard({
     }, 2000);
 
     return () => clearInterval(monitoringInterval);
-  }, [testReport, isConfirmed, atrAtual, posicaoCandle, corFundoMedia20, candleFechado, teveToqueNa99, precoAtual, maximaCandle, minimaCandle, estadoEst6Cima, estadoEst1Baixo, estadoEst3Baixo, estadoEst4Baixo, atrRefCima2, atrRefCima4, onPatternChange]);
+  }, [testReport, isConfirmed, atrAtual, corFundoMedia20, candleFechado, teveToqueNa99, precoAtual, valorMedia99, maximaCandle, minimaCandle, estadoEst6Cima, estadoEst1Baixo, estadoEst3Baixo, estadoEst4Baixo, atrRefCima2, atrRefCima4, onPatternChange]);
 
   // ==========================================
   // GERENCIAMENTO DO TEMPORIZADOR DE 10 MINUTOS
@@ -316,7 +323,6 @@ export default function ScannerCard({
 
     const contemAguardar = mensagemMaiuscula.includes("AGUARDAR");
 
-    // Se contém AGUARDAR, o temporizador de 10 minutos é ignorado e o card fica trancado
     if (!contemAguardar) {
       timerRef.current = setTimeout(() => {
         setIsConfirmed(false);
@@ -361,9 +367,9 @@ export default function ScannerCard({
     switch (nextIndex) {
       case 1: reportResult = "[VEM DE CIMA] - Estratégia 1: Compra Confirmada"; break;
       case 2: reportResult = "[VEM DE CIMA] - Estratégia 2: Venda Confirmada"; break;
-      case 3: reportResult = "[VEM DE BAIXO] - Estratégia 3: Zona de Exclusão. Aguardar"; break;
+      case 3: reportResult = "[VEM DE BAIXO] - Estratégia 3: Zona de Exclusão. Venda Confirmada"; break;
       case 4: reportResult = "[VEM DE CIMA] - Estratégia 6: Venda Confirmada no Topo Dinâmico"; break;
-      case 5: reportResult = "[VEM DE BAIXO] - Estratégia 1: Topo Marcado. Aguardar"; break;
+      case 5: reportResult = "[VEM DE BAIXO] - Estratégia 1: Topo Marcado.Venda Confirmada"; break;
       case 6: reportResult = "[VEM DE CIMA] - Estratégia 5: Gráfico 4H - Aguardar Toque na Média 99"; break;
       case 7:
       default: reportResult = null; break;

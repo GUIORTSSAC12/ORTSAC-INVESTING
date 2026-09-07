@@ -38,8 +38,8 @@ export function processarEstrategia1VemDeBaixo(dados: DadosEstrategia1VemDeBaixo
     const maximaGravada = dados.maximaCandleAtual;
 
     return {
-      acao: "AGUARDAR",
-      status: "Estratégia 1 (Vem de Baixo) Ativada: ATR > 0.510. Topo de referência marcado na máxima.",
+      acao: "VENDA", // Mudado para sinalizar que o topo de referência foi estabelecido e o setup está armado
+      status: `Estratégia 1 (Vem de Baixo) - Topo Marcado e Armado! Referência na máxima: ${maximaGravada}`,
       stopLoss: 0.35,
       takeProfit: 0.70,
       novoEstado: {
@@ -76,8 +76,8 @@ export function processarEstrategia1VemDeBaixo(dados: DadosEstrategia1VemDeBaixo
       const novoTopo = dados.maximaCandleAtual;
 
       return {
-        acao: "AGUARDAR",
-        status: "Estratégia 1: Preço retornou ao topo antigo. Desconsiderando o anterior e aguardando confirmação do novo topo.",
+        acao: "VENDA", // Sinaliza que um novo topo foi acionado e está em fase de validação
+        status: `Estratégia 1: Preço retornou ao topo antigo. Novo topo provisório gravado em: ${novoTopo}. Validando candle seguinte.`,
         stopLoss: 0.35,
         takeProfit: 0.70,
         novoEstado: {
@@ -224,8 +224,8 @@ export function processarEstrategia3VemDeBaixo(dados: DadosEstrategia3VemDeBaixo
     const maximaFixa = dados.maximaCandleAtual;
 
     return {
-      acao: "AGUARDAR",
-      status: "Estratégia 3 (Vem de Baixo) Ativada: ATR entre 0.350 e 0.400. Máxima fixa gravada permanentemente.",
+      acao: "VENDA",
+      status: `Estratégia 3 (Vem de Baixo) - Venda Confirmada! Máxima fixa gravada em: ${maximaFixa}`,
       stopLoss: 0.35,
       takeProfit: 0.70,
       novoEstado: {
@@ -256,7 +256,7 @@ export function processarEstrategia3VemDeBaixo(dados: DadosEstrategia3VemDeBaixo
 
   return {
     acao: "IGNORADO",
-    status: "Estratégia 3 (Vem de Baixo) aguardando gatilho ou retorno na máxima fixa.",
+    status: "Estrategia 3 (Vem de Baixo) aguardando gatilho ou retorno na máxima fixa.",
     stopLoss: 0.35,
     takeProfit: 0.70,
     novoEstado: estado
