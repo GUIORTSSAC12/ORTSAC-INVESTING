@@ -1,6 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
 import scannerbg from "../assets/scanner.jpeg";
 import msnSound from "../assets/MSN.mp3";
+import {
+  getGlobalAnimationProgress,
+  getGlobalDotStep,
+  useGlobalAnimationClock,
+} from "./globalAnimationClock";
 
 interface ScannerCardProps {
   divRef?: React.RefObject<HTMLDivElement | null>;
@@ -15,7 +20,9 @@ export default function ScannerCard({
   timeRemaining = "02:00:00",
   onPatternChange,
 }: ScannerCardProps) {
-  const [dotStep, setDotStep] = useState(1);
+  const globalAnimationNow = useGlobalAnimationClock();
+  const animationProgress = getGlobalAnimationProgress(globalAnimationNow);
+  const dotStep = getGlobalDotStep(globalAnimationNow);
   const [testReport, setTestReport] = useState<string | null>(null);
 
   const [confirmedReport, setConfirmedReport] = useState<string | null>(null);
@@ -114,20 +121,6 @@ export default function ScannerCard({
       }
     };
   }, []);
-
-  useEffect(() => {
-    if (isConfirmed) {
-      return;
-    }
-
-    const interval = setInterval(() => {
-      setDotStep((prev) => (prev % 3) + 1);
-    }, 400);
-
-    return () => {
-      clearInterval(interval);
-    };
-  }, [isConfirmed]);
 
   const renderDots = () => {
     return (
@@ -270,7 +263,14 @@ export default function ScannerCard({
             />
 
             {!isConfirmed && (
-              <div className="absolute h-3.5 w-3.5 rounded-full bg-white shadow-[0_0_14px_#22d3ee] animate-scanner-restart" />
+              <div
+                className="absolute h-3.5 w-3.5 rounded-full bg-white shadow-[0_0_14px_#22d3ee]"
+                style={{
+                  left: `${animationProgress * 100}%`,
+                  opacity: animationProgress >= 0.96 ? 0 : 1,
+                  transform: animationProgress >= 0.95 ? "translateX(-100%)" : "none",
+                }}
+              />
             )}
           </div>
         </div>
@@ -297,35 +297,6 @@ export default function ScannerCard({
         </div>
       </div>
 
-      <style>{`
-        @keyframes restartSlide {
-          0% {
-            left: 0%;
-            transform: translateX(0);
-            opacity: 1;
-          }
-
-          95% {
-            left: 100%;
-            transform: translateX(-100%);
-            opacity: 1;
-          }
-
-          96% {
-            opacity: 0;
-          }
-
-          100% {
-            left: 0%;
-            transform: translateX(0);
-            opacity: 0;
-          }
-        }
-
-        .animate-scanner-restart {
-          animation: restartSlide 2s linear infinite;
-        }
-      `}</style>
     </div>
   );
 }

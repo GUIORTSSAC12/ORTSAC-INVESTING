@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import scannerbg from "../assets/scanner.jpeg";
 import msnSound from "../assets/MSN.mp3";
+import {
+  getGlobalAnimationProgress,
+  getGlobalDotStep,
+  useGlobalAnimationClock,
+} from "./globalAnimationClock";
 
 interface TradeStrategy {
   type: 'COMPRA' | 'VENDA';
@@ -36,7 +41,9 @@ export default function TradingCard({
     valuePx: '18px',
   };
 
-  const [dotStep, setDotStep] = useState(1);
+  const globalAnimationNow = useGlobalAnimationClock();
+  const animationProgress = getGlobalAnimationProgress(globalAnimationNow);
+  const dotStep = getGlobalDotStep(globalAnimationNow);
 
   const rawIncomingReport = patternReport;
   const isAguardando = rawIncomingReport ? rawIncomingReport.toUpperCase().includes("AGUARDAR") : false;
@@ -163,14 +170,6 @@ export default function TradingCard({
 
   }, [incomingReport, basePrice, isInstitutionalActive]);
 
-  useEffect(() => {
-    if (activeStrategy) return;
-    const timer = setInterval(() => {
-      setDotStep((prev) => (prev % 3) + 1);
-    }, 400);
-    return () => clearInterval(timer);
-  }, [activeStrategy]);
-
   // Ação de resgatar o pendente para o TradingCard (Aqui faz barulho, pois o pendente virou foco!)
   const handleResetCard = () => {
     if (pendingStrategy) {
@@ -223,9 +222,9 @@ export default function TradingCard({
               </h2>
               {!isConfirmed && (
                 <span className="inline-flex items-center ml-1 space-x-1">
-                  <span className={`h-1.5 w-1.5 rounded-full ${dotStep === 1 ? 'bg-cyan-300 opacity-100 shadow-[0_0_8px_#22d3ee]' : 'bg-cyan-800 opacity-30'}`} />
-                  <span className={`h-1.5 w-1.5 rounded-full ${dotStep === 2 ? 'bg-cyan-300 opacity-100 shadow-[0_0_8px_#22d3ee]' : 'bg-cyan-800 opacity-30'}`} />
-                  <span className={`h-1.5 w-1.5 rounded-full ${dotStep === 3 ? 'bg-cyan-300 opacity-100 shadow-[0_0_8px_#22d3ee]' : 'bg-cyan-800 opacity-30'}`} />
+                  <span className={`h-1.5 w-1.5 rounded-full transition-opacity duration-200 ${dotStep === 1 ? 'bg-cyan-300 opacity-100 shadow-[0_0_8px_#22d3ee]' : 'bg-cyan-800 opacity-30'}`} />
+                  <span className={`h-1.5 w-1.5 rounded-full transition-opacity duration-200 ${dotStep === 2 ? 'bg-cyan-300 opacity-100 shadow-[0_0_8px_#22d3ee]' : 'bg-cyan-800 opacity-30'}`} />
+                  <span className={`h-1.5 w-1.5 rounded-full transition-opacity duration-200 ${dotStep === 3 ? 'bg-cyan-300 opacity-100 shadow-[0_0_8px_#22d3ee]' : 'bg-cyan-800 opacity-30'}`} />
                 </span>
               )}
             </div>
@@ -246,7 +245,14 @@ export default function TradingCard({
           <div className="relative w-full h-2 flex items-center">
             <div className={`absolute inset-0 h-1.5 rounded-full transition-colors duration-300 ${barColor}`} />
             {!isConfirmed && (
-              <div className="absolute h-3.5 w-3.5 rounded-full bg-white shadow-[0_0_14px_#22d3ee] animate-scanner-restart" />
+              <div
+                className="absolute h-3.5 w-3.5 rounded-full bg-white shadow-[0_0_14px_#22d3ee]"
+                style={{
+                  left: `${animationProgress * 100}%`,
+                  opacity: animationProgress >= 0.96 ? 0 : 1,
+                  transform: animationProgress >= 0.95 ? "translateX(-100%)" : "none",
+                }}
+              />
             )}
           </div>
         </div>
@@ -300,17 +306,6 @@ export default function TradingCard({
 
       </div>
 
-      <style>{`
-        @keyframes restartSlide {
-          0% { left: 0%; transform: translateX(0); opacity: 1; }
-          95% { left: 100%; transform: translateX(-100%); opacity: 1; }
-          96% { opacity: 0; }
-          100% { left: 0%; transform: translateX(0); opacity: 0; }
-        }
-        .animate-scanner-restart {
-          animation: restartSlide 2s linear infinite;
-        }
-      `}</style>
     </div>
   );
 }
