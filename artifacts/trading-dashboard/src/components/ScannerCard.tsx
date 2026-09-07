@@ -359,20 +359,141 @@ export default function ScannerCard({
   );
 
   const cycleTest = () => {
-    const nextIndex = (testIndexRef.current + 1) % 8;
+    const nextIndex = (testIndexRef.current + 1) % 11;
     testIndexRef.current = nextIndex;
     setDisplayIndex(nextIndex);
 
     let reportResult: string | null = null;
     switch (nextIndex) {
-      case 1: reportResult = "[VEM DE CIMA] - Estratégia 1: Compra Confirmada"; break;
-      case 2: reportResult = "[VEM DE CIMA] - Estratégia 2: Venda Confirmada"; break;
-      case 3: reportResult = "[VEM DE BAIXO] - Estratégia 3: Zona de Exclusão. Venda Confirmada"; break;
-      case 4: reportResult = "[VEM DE CIMA] - Estratégia 6: Venda Confirmada no Topo Dinâmico"; break;
-      case 5: reportResult = "[VEM DE BAIXO] - Estratégia 1: Topo Marcado.Venda Confirmada"; break;
-      case 6: reportResult = "[VEM DE CIMA] - Estratégia 5: Gráfico 4H - Aguardar Toque na Média 99"; break;
+      case 1:
+        reportResult = formatStrategyMessage(
+          "VEM DE CIMA",
+          VemDeCima.processarEstrategia1VemDeCima({
+            teveToqueNa99DeCima: true,
+            atrAtual: 0.45,
+          }),
+          "TESTE",
+        );
+        break;
+      case 2:
+        reportResult = formatStrategyMessage(
+          "VEM DE CIMA",
+          VemDeCima.processarEstrategia2VemDeCima({
+            teveToqueNa99DeCima: true,
+            atrAtual: 0.55,
+            atrReferenciaSalvo: 0.6,
+            proximoCandleFechado: true,
+          }),
+          "TESTE",
+        );
+        break;
+      case 3:
+        reportResult = formatStrategyMessage(
+          "VEM DE CIMA",
+          VemDeCima.processarEstrategia3VemDeCima({
+            teveToqueNa99DeCima: true,
+            atrAtual: 0.505,
+          }),
+          "TESTE",
+        );
+        break;
+      case 4:
+        reportResult = formatStrategyMessage(
+          "VEM DE CIMA",
+          VemDeCima.processarEstrategia4VemDeCima({
+            teveToqueNa99DeCima: true,
+            atrAtual: 0.4,
+            atrReferenciaSalvo: 0.35,
+            proximoCandleFechado: true,
+          }),
+          "TESTE",
+        );
+        break;
+      case 5:
+        reportResult = formatStrategyMessage(
+          "VEM DE CIMA",
+          VemDeCima.processarEstrategia5VemDeCima({
+            teveToqueNa99DeCima: true,
+            atrAtual2H: 0.33,
+            atrAnterior2H: 0.2,
+            fechamentoCorpoAbaixoDaMedia99: true,
+          }),
+          "TESTE",
+        );
+        break;
+      case 6:
+        reportResult = formatStrategyMessage(
+          "VEM DE CIMA",
+          VemDeCima.processarEstrategia6VemDeCima({
+            teveToqueNa99DeCima: true,
+            atrAtual: 0.25,
+            precoAtual: 100,
+            maximaCandleToque: 100.5,
+            minimaCandleToque: 99.5,
+            estadoAtual: { fase: "AGUARDANDO_ATIVACAO" },
+          }),
+          "TESTE",
+        );
+        break;
       case 7:
-      default: reportResult = null; break;
+        reportResult = formatStrategyMessage(
+          "VEM DE BAIXO",
+          VemDeBaixo.processarEstrategia1VemDeBaixo({
+            teveToqueNa99DeBaixo: true,
+            atrAtual: 0.6,
+            precoAtual: 100,
+            maximaCandleAtual: 100.5,
+            estadoAtual: { fase: "MONITORANDO_TOPO" },
+          }),
+          "TESTE",
+        );
+        break;
+      case 8:
+        reportResult = formatStrategyMessage(
+          "VEM DE BAIXO",
+          VemDeBaixo.processarEstrategia2VemDeBaixo({
+            teveToqueNa99DeBaixo: true,
+            atrAtual: 0.45,
+            toqueOcorreuNoCandleAberto: false,
+            corpoInstitucionalInteiroAcimaDa20: true,
+            corpoInstitucionalAbaixoDa99: true,
+            media20TocouCorpoInstitucional: false,
+          }),
+          "TESTE",
+        );
+        break;
+      case 9:
+        reportResult = formatStrategyMessage(
+          "VEM DE BAIXO",
+          VemDeBaixo.processarEstrategia3VemDeBaixo({
+            teveToqueNa99DeBaixo: true,
+            atrAtual: 0.375,
+            precoAtual: 100,
+            maximaCandleAtual: 100.5,
+            estadoAtual: { fase: "MONITORANDO_MAXIMA" },
+          }),
+          "TESTE",
+        );
+        break;
+      case 10:
+        reportResult = formatStrategyMessage(
+          "VEM DE BAIXO",
+          VemDeBaixo.processarEstrategia4VemDeBaixo({
+            teveToqueNa99DeBaixo: true,
+            atrAtual: 0.25,
+            precoAtual: 100,
+            minimaCandleAnterior: 99.5,
+            media20AbaixoDoCorpo: true,
+            media20TocouApenasPavio: false,
+            estadoAtual: { fase: "MONITORANDO_FUNDO" },
+          }),
+          "TESTE",
+        );
+        break;
+      case 0:
+      default:
+        reportResult = null;
+        break;
     }
 
     if (timerRef.current !== null) {
@@ -396,12 +517,16 @@ export default function ScannerCard({
 
   const getButtonLabel = () => {
     if (displayIndex === 0) return "Monitorando";
-    if (displayIndex === 1) return "Cima - Est.1 (Compra)";
-    if (displayIndex === 2) return "Cima - Est.2 (Venda)";
-    if (displayIndex === 3) return "Baixo - Est.3 (Aguardar)";
-    if (displayIndex === 4) return "Cima - Est.6 (Venda)";
-    if (displayIndex === 5) return "Baixo - Est.1 (Aguardar)";
-    if (displayIndex === 6) return "Cima - Est.5 (4H)";
+    if (displayIndex === 1) return "Cima - Est.1";
+    if (displayIndex === 2) return "Cima - Est.2";
+    if (displayIndex === 3) return "Cima - Est.3";
+    if (displayIndex === 4) return "Cima - Est.4";
+    if (displayIndex === 5) return "Cima - Est.5";
+    if (displayIndex === 6) return "Cima - Est.6";
+    if (displayIndex === 7) return "Baixo - Est.1";
+    if (displayIndex === 8) return "Baixo - Est.2";
+    if (displayIndex === 9) return "Baixo - Est.3";
+    if (displayIndex === 10) return "Baixo - Est.4";
     return "Zerar";
   };
 
