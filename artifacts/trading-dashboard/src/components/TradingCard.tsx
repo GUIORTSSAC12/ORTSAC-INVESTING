@@ -90,6 +90,9 @@ export default function TradingCard({
   const rawIncomingReport = patternReport;
   const isAguardando = rawIncomingReport ? rawIncomingReport.toUpperCase().includes("AGUARDAR") : false;
   const incomingReport = (isAguardando || !rawIncomingReport) ? null : rawIncomingReport;
+  const currentIncomingKey = incomingReport
+    ? `${incomingReport}|${strategySignal?.strategyId ?? ""}|${strategySignal?.action ?? ""}`
+    : null;
 
   const [activeStrategy, setActiveStrategy] = useState<TradeStrategy | null>(null);
   const [activeReportName, setActiveReportName] = useState<string | null>(null);
@@ -97,6 +100,7 @@ export default function TradingCard({
   const [pendingStrategy, setPendingStrategy] = useState<{
     reportName: string;
     data: TradeStrategy;
+    signalKey: string | null;
   } | null>(null);
   const [guardianStatus, setGuardianStatus] = useState<string | null>(null);
   const [guardianCancelled, setGuardianCancelled] = useState(false);
@@ -107,6 +111,7 @@ export default function TradingCard({
   const onPendingChangeRef = useRef(onPendingChange);
   const processedIncomingKeyRef = useRef<string | null>(null);
   const swapPerformedRef = useRef(false);
+  const activeSignalKeyRef = useRef<string | null>(null);
   onPendingChangeRef.current = onPendingChange;
 
   const playSound = () => {
@@ -341,7 +346,10 @@ export default function TradingCard({
       return;
     }
 
-    const incomingKey = `${incomingReport}|${strategySignal?.strategyId ?? ""}|${strategySignal?.action ?? ""}`;
+    const incomingKey = currentIncomingKey;
+    if (!incomingKey) {
+      return;
+    }
     if (processedIncomingKeyRef.current === incomingKey) {
       return;
     }
@@ -426,6 +434,7 @@ export default function TradingCard({
       setPendingStrategy({
         reportName: activeReportName ?? previousActiveStrategy.title,
         data: previousActiveStrategy,
+        signalKey: activeSignalKeyRef.current,
       });
     } else {
       setPendingStrategy(null);
@@ -434,10 +443,12 @@ export default function TradingCard({
     setIsStopProtected(false);
     setActiveStrategy(newCalculatedData);
     setActiveReportName(baseStratTitle);
+    activeSignalKeyRef.current = incomingKey;
     playSound();
 
   }, [
     incomingReport,
+    currentIncomingKey,
     strategySignal,
     referencePrice,
     isInstitutionalActive,
@@ -478,33 +489,118 @@ export default function TradingCard({
     setGuardianCancelled(false);
     setInstitutionalStopPct(null);
     swapPerformedRef.current = false;
+    activeSignalKeyRef.current = null;
   };
+
+  // Encerramento natural: quando o preço atinge Gain/Stop ou o guardião
+  // confirma fechamento do mesmo sinal ativo, promove o pendente sem exigir
+  // intervenção manual.
+  useEffect(() => {
+    if (!activeStrategy) return;
+    if (swapPerformedRef.current) return;
+    if (
+      precoAtual == null ||
+      !Number.isFinite(precoAtual) ||
+      precoAtual <= 0
+    ) {
+      return;
+    }
+
+    const isBuy = activeStrategy.type === "COMPRA";
+    const gainReached = isBuy
+      ? precoAtual >= activeStrategy.gainVal
+      : precoAtual <= activeStrategy.gainVal;
+
+    const stopPct = isStopProtected
+      ? PROTECTED_STOP_PCT
+      : institutionalStopPct;
+    const stopValue = stopPct != null
+      ? Number(
+          (
+            activeStrategy.entry *
+            (isBuy ? (1 + stopPct / 100) : (1 - stopPct / 100))
+          ).toFixed(3),
+        )
+      : activeStrategy.stopVal;
+    const stopReached = isBuy
+      ? precoAtual <= stopValue
+      : precoAtual >= stopValue;
+    const guardianClosedSameSignal =
+      guardianCancelled &&
+      activeSignalKeyRef.current != null &&
+      activeSignalKeyRef.current === currentIncomingKey;
+
+    if (!gainReached && !stopReached && !guardianClosedSameSignal) {
+      return;
+    }
+
+    if (!pendingStrategy) {
+      clearCard();
+      return;
+    }
+
+    const nextStrategy = pendingStrategy;
+    activeSignalKeyRef.current = nextStrategy.signalKey;
+    setActiveStrategy(nextStrategy.data);
+    setActiveReportName(nextStrategy.reportName);
+    setPendingStrategy(null);
+    setIsStopProtected(false);
+    setGuardianStatus(null);
+    setGuardianCancelled(false);
+    setInstitutionalStopPct(null);
+    swapPerformedRef.current = false;
+    playSound();
+  }, [
+    activeStrategy,
+    pendingStrategy,
+    precoAtual,
+    isStopProtected,
+    institutionalStopPct,
+    guardianCancelled,
+    currentIncomingKey,
+  ]);
 
   const handleResetCard = () => {
     if (pendingStrategy) {
-      if (swapPerformedRef.current) {
-        clearCard();
-        return;
-      }
-
       const activeToQueue = activeStrategy
         ? {
             reportName: activeReportName ?? activeStrategy.title,
             data: activeStrategy,
+            signalKey: activeSignalKeyRef.current,
           }
         : null;
 
+      if (!swapPerformedRef.current) {
+        // 1º clique: troca os dois objetos sem alterá-los.
+        setActiveStrategy(pendingStrategy.data);
+        setActiveReportName(pendingStrategy.reportName);
+        setPendingStrategy(activeToQueue);
+        activeSignalKeyRef.current = pendingStrategy.signalKey;
+        setIsStopProtected(false);
+        lastStopTextRef.current = pendingStrategy.data.stopText;
+        setGuardianStatus(null);
+        setGuardianCancelled(false);
+        setInstitutionalStopPct(null);
+        swapPerformedRef.current = true;
+        playSound();
+        return;
+      }
+
+      // 2º clique: descarta o ativo que veio do primeiro swap e promove
+      // exatamente o item que restou na fila.
       setActiveStrategy(pendingStrategy.data);
       setActiveReportName(pendingStrategy.reportName);
-      setPendingStrategy(activeToQueue);
+      setPendingStrategy(null);
+      activeSignalKeyRef.current = pendingStrategy.signalKey;
       setIsStopProtected(false);
       lastStopTextRef.current = pendingStrategy.data.stopText;
       setGuardianStatus(null);
       setGuardianCancelled(false);
       setInstitutionalStopPct(null);
-      swapPerformedRef.current = true;
-      playSound(); 
+      swapPerformedRef.current = false;
+      playSound();
     } else {
+      // 3º clique (ou card isolado): limpeza total.
       clearCard();
     }
   };
