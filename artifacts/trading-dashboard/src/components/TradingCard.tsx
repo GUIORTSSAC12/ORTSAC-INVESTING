@@ -109,7 +109,8 @@ export default function TradingCard({
 
   const lastStopTextRef = useRef<string | null>(null);
   const onPendingChangeRef = useRef(onPendingChange);
-  const processedIncomingKeyRef = useRef<string | null>(null);
+  const lastProcessedReportRef = useRef<string | null>(null);
+  const lastProcessedSignalRef = useRef<StrategySignal | undefined>(undefined);
   const swapPerformedRef = useRef(false);
   const activeSignalKeyRef = useRef<string | null>(null);
   onPendingChangeRef.current = onPendingChange;
@@ -342,7 +343,8 @@ export default function TradingCard({
   // Processamento principal estritamente baseado no sinal recebido do ScannerCard
   useEffect(() => {
     if (!incomingReport) {
-      processedIncomingKeyRef.current = null;
+      lastProcessedReportRef.current = null;
+      lastProcessedSignalRef.current = undefined;
       return;
     }
 
@@ -350,10 +352,14 @@ export default function TradingCard({
     if (!incomingKey) {
       return;
     }
-    if (processedIncomingKeyRef.current === incomingKey) {
+    const isSameScannerEvent =
+      lastProcessedReportRef.current === incomingReport &&
+      lastProcessedSignalRef.current === strategySignal;
+    if (isSameScannerEvent) {
       return;
     }
-    processedIncomingKeyRef.current = incomingKey;
+    lastProcessedReportRef.current = incomingReport;
+    lastProcessedSignalRef.current = strategySignal;
     swapPerformedRef.current = false;
 
     const reportUpper = incomingReport.toUpperCase();
@@ -420,13 +426,6 @@ export default function TradingCard({
     };
 
     const previousActiveStrategy = activeStrategy;
-    const shouldReplaceActive =
-      previousActiveStrategy == null ||
-      previousActiveStrategy.title !== baseStratTitle;
-
-    if (!shouldReplaceActive) {
-      return;
-    }
 
     if (previousActiveStrategy) {
       // Preserva exatamente o objeto que estava ativo, incluindo seu tipo
