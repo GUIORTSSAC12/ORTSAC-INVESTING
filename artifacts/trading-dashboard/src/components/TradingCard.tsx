@@ -22,6 +22,9 @@ interface TradeStrategy {
   gainText: string;
 }
 
+const PROTECTION_TRIGGER_PCT = 0.50;
+const PROTECTED_STOP_PCT = 0.10;
+
 interface TradingCardProps {
   divRef?: React.RefObject<HTMLDivElement | null>;
   patternReport?: string | null;          
@@ -60,6 +63,12 @@ export default function TradingCard({
   isInstitutionalActive = false,
   onPendingChange
 }: TradingCardProps) {
+  const referencePrice =
+    precoAtual != null &&
+    Number.isFinite(precoAtual) &&
+    precoAtual > 0
+      ? precoAtual
+      : basePrice;
 
   const fontSizeConfig = {
     cardTitle: '16px',
@@ -86,9 +95,11 @@ export default function TradingCard({
   const [guardianStatus, setGuardianStatus] = useState<string | null>(null);
   const [guardianCancelled, setGuardianCancelled] = useState(false);
   const [institutionalStopPct, setInstitutionalStopPct] = useState<number | null>(null);
+  const [isStopProtected, setIsStopProtected] = useState(false);
 
   const lastStopTextRef = useRef<string | null>(null);
   const onPendingChangeRef = useRef(onPendingChange);
+  const processedIncomingKeyRef = useRef<string | null>(null);
   onPendingChangeRef.current = onPendingChange;
 
   const playSound = () => {
@@ -117,7 +128,7 @@ export default function TradingCard({
 
     if (!strategySignal) return;
 
-    const livePrice = precoAtual ?? basePrice;
+    const livePrice = referencePrice;
     const liveAtr = atrAtual;
     let status = `GUARDIÃO ATIVO: ${strategySignal.direction} · ESTRATÉGIA ${strategySignal.strategyId}`;
     let cancelled = false;
@@ -292,7 +303,7 @@ export default function TradingCard({
 
     if (institutionalPivot != null && Number.isFinite(institutionalPivot)) {
       const parede = Institucional.avaliarFiltroExposicaoParede({
-        precoEntrada: basePrice,
+        precoEntrada: referencePrice,
         valorParedePivot: institutionalPivot,
       });
       if (!parede.permitirAjusteStop) {
@@ -307,7 +318,7 @@ export default function TradingCard({
   }, [
     strategySignal,
     precoAtual,
-    basePrice,
+    referencePrice,
     atrAtual,
     media20,
     media99,
@@ -319,8 +330,15 @@ export default function TradingCard({
   // Processamento principal estritamente baseado no sinal recebido do ScannerCard
   useEffect(() => {
     if (!incomingReport) {
+      processedIncomingKeyRef.current = null;
       return;
     }
+
+    const incomingKey = `${incomingReport}|${strategySignal?.strategyId ?? ""}|${strategySignal?.action ?? ""}`;
+    if (processedIncomingKeyRef.current === incomingKey) {
+      return;
+    }
+    processedIncomingKeyRef.current = incomingKey;
 
     const reportUpper = incomingReport.toUpperCase();
 
@@ -367,13 +385,13 @@ export default function TradingCard({
     let sText = `STOP (-${stopPct.toFixed(2)}%)`;
 
     // CORREÇÃO DO CÁLCULO DO STOP (Antes estava fixado em 0)
-    const sVal = Math.round(basePrice * (isSell ? (1 + stopPct / 100) : (1 - stopPct / 100)));
-    const gVal = Math.round(basePrice * (isSell ? (1 - gainPctNum / 100) : (1 + gainPctNum / 100)));
+    const sVal = referencePrice * (isSell ? (1 + stopPct / 100) : (1 - stopPct / 100));
+    const gVal = referencePrice * (isSell ? (1 - gainPctNum / 100) : (1 + gainPctNum / 100));
 
     const newCalculatedData: TradeStrategy = {
       type: isSell ? 'VENDA' : 'COMPRA',
       title: baseStratTitle.toUpperCase(),
-      entry: Math.round(basePrice),
+      entry: referencePrice,
       stopVal: sVal,
       gainVal: gVal,
       stopText: sText,
@@ -391,21 +409,55 @@ export default function TradingCard({
           reportName: baseStratTitle,
           data: currentActive
         });
+      } else {
+        setPendingStrategy(null);
       }
 
+      setIsStopProtected(false);
       playSound();
       return newCalculatedData;
     });
 
     setActiveReportName(baseStratTitle);
 
-  }, [incomingReport, strategySignal, basePrice, isInstitutionalActive]);
+  }, [incomingReport, strategySignal, referencePrice, isInstitutionalActive]);
+
+  // Proteção de gain: o gatilho é avaliado apenas com um precoAtual válido
+  // e fica travado depois de acionado, mesmo se houver retração posterior.
+  useEffect(() => {
+    if (!activeStrategy) return;
+    if (
+      precoAtual == null ||
+      !Number.isFinite(precoAtual) ||
+      precoAtual <= 0 ||
+      !Number.isFinite(activeStrategy.entry) ||
+      activeStrategy.entry <= 0
+    ) {
+      return;
+    }
+
+    const movimentoFavoravel = activeStrategy.type === "COMPRA"
+      ? ((precoAtual - activeStrategy.entry) / activeStrategy.entry) * 100
+      : ((activeStrategy.entry - precoAtual) / activeStrategy.entry) * 100;
+
+    if (movimentoFavoravel >= PROTECTION_TRIGGER_PCT) {
+      setIsStopProtected(true);
+    }
+  }, [activeStrategy, precoAtual]);
 
   const handleResetCard = () => {
     if (pendingStrategy) {
+      const activeToQueue = activeStrategy
+        ? {
+            reportName: activeReportName ?? activeStrategy.title,
+            data: activeStrategy,
+          }
+        : null;
+
       setActiveStrategy(pendingStrategy.data);
       setActiveReportName(pendingStrategy.reportName);
-      setPendingStrategy(null);
+      setPendingStrategy(activeToQueue);
+      setIsStopProtected(false);
       lastStopTextRef.current = pendingStrategy.data.stopText;
       setGuardianStatus(null);
       setGuardianCancelled(false);
@@ -415,6 +467,8 @@ export default function TradingCard({
       setActiveStrategy(null);
       setActiveReportName(null);
       lastStopTextRef.current = null;
+      setPendingStrategy(null);
+      setIsStopProtected(false);
       setGuardianStatus(null);
       setGuardianCancelled(false);
       setInstitutionalStopPct(null);
@@ -423,15 +477,22 @@ export default function TradingCard({
 
   const isConfirmed = activeStrategy !== null;
   const isSellOperation = activeStrategy?.type === 'VENDA';
-  const renderedStopPct = institutionalStopPct ?? null;
+  const renderedStopPct = isStopProtected
+    ? PROTECTED_STOP_PCT
+    : institutionalStopPct ?? null;
   const renderedStopValue =
     activeStrategy && renderedStopPct != null
-      ? Math.round(basePrice * (isSellOperation ? (1 + renderedStopPct / 100) : (1 - renderedStopPct / 100)))
+      ? activeStrategy.entry * (isSellOperation ? (1 - renderedStopPct / 100) : (1 + renderedStopPct / 100))
       : activeStrategy?.stopVal;
   const renderedStopText =
-    renderedStopPct != null
+    isStopProtected
+      ? `STOP PROTEGIDO (+${PROTECTED_STOP_PCT.toFixed(2)}%)`
+      : renderedStopPct != null
       ? `STOP (-${renderedStopPct.toFixed(2)}%)`
       : activeStrategy?.stopText;
+  const renderedStopClass = isStopProtected
+    ? "text-blue-500"
+    : activeStrategy?.stopClass;
 
   const statusColor = guardianCancelled
     ? 'text-red-500 drop-shadow-[0_0_10px_#ef4444]'
@@ -522,10 +583,10 @@ export default function TradingCard({
             )}
 
             <div className="flex justify-between items-center px-1 py-0.5">
-              <span style={{ fontSize: fontSizeConfig.labelPx }} className={`${activeStrategy.stopClass} font-bold uppercase tracking-wider`}>
+              <span style={{ fontSize: fontSizeConfig.labelPx }} className={`${renderedStopClass} font-bold uppercase tracking-wider`}>
                 {renderedStopText}
               </span>
-              <span style={{ fontSize: fontSizeConfig.valuePx }} className={`${activeStrategy.stopClass} font-bold tracking-wide drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]`}>
+              <span style={{ fontSize: fontSizeConfig.valuePx }} className={`${renderedStopClass} font-bold tracking-wide drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]`}>
                 {renderedStopValue?.toLocaleString('pt-BR')}
               </span>
             </div>

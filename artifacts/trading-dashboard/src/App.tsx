@@ -473,6 +473,10 @@ function Index({ onLogout }: { onLogout: () => void }) {
     type: string;
     signal?: StrategySignal;
   } | null>(null);
+  const [queuedTrade, setQueuedTrade] = useState<{
+    title: string;
+    type: string;
+  } | null>(null);
   const [data, setData] = useState<TickerData | null>(null);
   const [prevPrice, setPrevPrice] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -1034,16 +1038,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
               media20={tf2h?.mas?.ma20 ?? null}
               media99={tf2h?.mas?.ma99 ?? null}
               institutionalCandle={tf2h?.lastClosedCandle ?? null}
-              onPendingChange={(pending) =>
-                setPendingTrade((current) =>
-                  pending
-                    ? {
-                        ...pending,
-                        signal: current?.signal,
-                      }
-                    : null,
-                )
-              }
+              onPendingChange={setQueuedTrade}
             />
           </div>
 
@@ -1089,9 +1084,9 @@ function Index({ onLogout }: { onLogout: () => void }) {
               </div>
 
               <div className="flex-1 flex flex-col items-center justify-center text-center font-mono text-xs">
-                {pendingTrade ? (
+                {queuedTrade ? (
                   <span className="text-amber-400 font-bold">
-                    [RESERVA ATIVA: {pendingTrade.title} - {pendingTrade.type}]
+                    [RESERVA ATIVA: {queuedTrade.title} - {queuedTrade.type}]
                   </span>
                 ) : (
                   <span className="text-cyan-500/80">
