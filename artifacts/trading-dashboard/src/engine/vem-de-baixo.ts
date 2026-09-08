@@ -289,6 +289,47 @@ export interface ResultadoEstrategia4VemDeBaixo {
   novoEstado: EstadoEstrategia4VemDeBaixo;
 }
 
+export interface DadosRetesteMinimaEstrategia4 {
+  precoAtual: number;
+  atrAtual: number;
+  minimaFundoMarcada: number;
+}
+
+export interface ResultadoRetesteMinimaEstrategia4 {
+  acao: "CANCELAR" | "MANTER_COMPRA" | "MONITORAR";
+  status: string;
+}
+
+/**
+ * Aplica a proteção da compra depois que a Estratégia 4 marcou um fundo.
+ *
+ * O toque ou rompimento da mínima só cancela a compra quando o ATR atinge
+ * o limiar operacional de 0.310. Com ATR abaixo do limiar, a compra segue
+ * mantida enquanto o reteste é registrado.
+ */
+export function avaliarRetesteMinimaEstrategia4(
+  dados: DadosRetesteMinimaEstrategia4,
+): ResultadoRetesteMinimaEstrategia4 {
+  if (dados.precoAtual > dados.minimaFundoMarcada) {
+    return {
+      acao: "MONITORAR",
+      status: `Estratégia 4: monitorando reteste da mínima ${dados.minimaFundoMarcada} · preço ${dados.precoAtual.toFixed(3)}.`,
+    };
+  }
+
+  if (dados.atrAtual >= 0.310) {
+    return {
+      acao: "CANCELAR",
+      status: `Estratégia 4 cancelada: preço tocou/rompeu a mínima ${dados.minimaFundoMarcada} com ATR ${dados.atrAtual.toFixed(3)} >= 0.310.`,
+    };
+  }
+
+  return {
+    acao: "MANTER_COMPRA",
+    status: `Estratégia 4: mínima ${dados.minimaFundoMarcada} retestada com ATR ${dados.atrAtual.toFixed(3)} < 0.310. Compra mantida.`,
+  };
+}
+
 /**
  * Processa exclusivamente a Estratégia 4 do "Vem de Baixo"
  */

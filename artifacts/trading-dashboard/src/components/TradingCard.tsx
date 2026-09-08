@@ -239,16 +239,14 @@ export default function TradingCard({
         strategySignal.strategyId === 4 &&
         strategySignal.minimaFundoMarcada != null
       ) {
-        const minimaMarcada = strategySignal.minimaFundoMarcada;
-        if (livePrice <= minimaMarcada) {
-          if (liveAtr >= 0.310) {
-            cancelled = true;
-            status = `ESTRATÉGIA 4 CANCELADA: preço tocou/rompeu a mínima ${minimaMarcada} com ATR ${liveAtr.toFixed(3)} >= 0.310.`;
-          } else {
-            status = `ESTRATÉGIA 4: mínima ${minimaMarcada} retestada com ATR ${liveAtr.toFixed(3)} < 0.310. COMPRA MANTIDA.`;
-          }
-        } else {
-          status = `ESTRATÉGIA 4: monitorando reteste da mínima ${minimaMarcada} · preço ${livePrice.toFixed(3)}.`;
+        const reteste = VemDeBaixo.avaliarRetesteMinimaEstrategia4({
+          precoAtual: livePrice,
+          atrAtual: liveAtr,
+          minimaFundoMarcada: strategySignal.minimaFundoMarcada,
+        });
+        status = reteste.status;
+        if (reteste.acao === "CANCELAR") {
+          cancelled = true;
         }
       }
 
