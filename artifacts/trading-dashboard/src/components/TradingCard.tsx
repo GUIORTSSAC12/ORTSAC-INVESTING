@@ -106,6 +106,7 @@ export default function TradingCard({
   const lastStopTextRef = useRef<string | null>(null);
   const onPendingChangeRef = useRef(onPendingChange);
   const processedIncomingKeyRef = useRef<string | null>(null);
+  const swapPerformedRef = useRef(false);
   onPendingChangeRef.current = onPendingChange;
 
   const playSound = () => {
@@ -345,6 +346,7 @@ export default function TradingCard({
       return;
     }
     processedIncomingKeyRef.current = incomingKey;
+    swapPerformedRef.current = false;
 
     const reportUpper = incomingReport.toUpperCase();
 
@@ -455,8 +457,25 @@ export default function TradingCard({
     }
   }, [activeStrategy, precoAtual]);
 
+  const clearCard = () => {
+    setActiveStrategy(null);
+    setActiveReportName(null);
+    lastStopTextRef.current = null;
+    setPendingStrategy(null);
+    setIsStopProtected(false);
+    setGuardianStatus(null);
+    setGuardianCancelled(false);
+    setInstitutionalStopPct(null);
+    swapPerformedRef.current = false;
+  };
+
   const handleResetCard = () => {
     if (pendingStrategy) {
+      if (swapPerformedRef.current) {
+        clearCard();
+        return;
+      }
+
       const activeToQueue = activeStrategy
         ? {
             reportName: activeReportName ?? activeStrategy.title,
@@ -472,16 +491,10 @@ export default function TradingCard({
       setGuardianStatus(null);
       setGuardianCancelled(false);
       setInstitutionalStopPct(null);
+      swapPerformedRef.current = true;
       playSound(); 
     } else {
-      setActiveStrategy(null);
-      setActiveReportName(null);
-      lastStopTextRef.current = null;
-      setPendingStrategy(null);
-      setIsStopProtected(false);
-      setGuardianStatus(null);
-      setGuardianCancelled(false);
-      setInstitutionalStopPct(null);
+      clearCard();
     }
   };
 
