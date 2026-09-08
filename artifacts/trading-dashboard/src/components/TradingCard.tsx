@@ -411,28 +411,39 @@ export default function TradingCard({
       gainText: `GAIN (+${gainPctNum.toFixed(2)}%)`,
     };
 
-    setActiveStrategy(currentActive => {
-      if (currentActive && currentActive.title === baseStratTitle) {
-        return currentActive;
-      }
+    const previousActiveStrategy = activeStrategy;
+    const shouldReplaceActive =
+      previousActiveStrategy == null ||
+      previousActiveStrategy.title !== baseStratTitle;
 
-      if (currentActive) {
-        setPendingStrategy({
-          reportName: baseStratTitle,
-          data: currentActive
-        });
-      } else {
-        setPendingStrategy(null);
-      }
+    if (!shouldReplaceActive) {
+      return;
+    }
 
-      setIsStopProtected(false);
-      playSound();
-      return newCalculatedData;
-    });
+    if (previousActiveStrategy) {
+      // Preserva exatamente o objeto que estava ativo, incluindo seu tipo
+      // original (COMPRA/VENDA), sem recalcular, copiar ou inverter o sinal.
+      setPendingStrategy({
+        reportName: activeReportName ?? previousActiveStrategy.title,
+        data: previousActiveStrategy,
+      });
+    } else {
+      setPendingStrategy(null);
+    }
 
+    setIsStopProtected(false);
+    setActiveStrategy(newCalculatedData);
     setActiveReportName(baseStratTitle);
+    playSound();
 
-  }, [incomingReport, strategySignal, referencePrice, isInstitutionalActive]);
+  }, [
+    incomingReport,
+    strategySignal,
+    referencePrice,
+    isInstitutionalActive,
+    activeStrategy,
+    activeReportName,
+  ]);
 
   // Proteção de gain: o gatilho é avaliado apenas com um precoAtual válido
   // e fica travado depois de acionado, mesmo se houver retração posterior.
