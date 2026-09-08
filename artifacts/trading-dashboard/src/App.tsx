@@ -15,6 +15,7 @@ import scannerbg from "./assets/scanner.jpeg";
 import { BotaoSomVix } from "./components/BOTAOSOM";
 import ScannerCard from "./components/ScannerCard";
 import TradingCard from "./components/TradingCard";
+import type { StrategySignal } from "./types/strategy";
 
 const AUTH_KEY = "dashboard_auth_v1";
 const AUTH_USER = "guilhermeortsac";
@@ -185,6 +186,7 @@ type MAs = { ma20: number; ma99: number };
 type TFData = {
   mas: MAs | null;
   atr14: number | null;
+  lastClosedCandle?: Kline | null;
   stale?: boolean;
   error?: string | null;
 };
@@ -363,6 +365,8 @@ function mergeTFData(previous: TFData | null, next: TFData): TFData {
       : isFiniteNumber(previous?.atr14)
         ? previous!.atr14
         : null,
+    lastClosedCandle:
+      next.lastClosedCandle ?? previous?.lastClosedCandle ?? null,
     stale: false,
     error: null,
   };
@@ -467,6 +471,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
   const [pendingTrade, setPendingTrade] = useState<{
     title: string;
     type: string;
+    signal?: StrategySignal;
   } | null>(null);
   const [data, setData] = useState<TickerData | null>(null);
   const [prevPrice, setPrevPrice] = useState<number | null>(null);
@@ -659,7 +664,10 @@ function Index({ onLogout }: { onLogout: () => void }) {
         const closedKs = allKs.slice(0, -1);
 
         return {
-          data: processTF(allKs, closedKs),
+          data: {
+            ...processTF(allKs, closedKs),
+            lastClosedCandle: closedKs.at(-1) ?? null,
+          },
           adx: interval === "2h" ? computeADX14(allKs) : null,
           atrPrevious:
             interval === "2h" ? computeATR14(closedKs.slice(0, -1)) : null,
@@ -989,13 +997,53 @@ function Index({ onLogout }: { onLogout: () => void }) {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <ScannerCard
               divRef={entrada2hRef}
-              onPatternChange={(report: string | null) => setPendingTrade(report ? { title: report, type: "scanner" } : null)}
+              atrAtual={tf2h?.atr14 ?? undefined}
+              precoAtual={data?.price ?? undefined}
+              valorMedia99={tf2h?.mas?.ma99 ?? undefined}
+              onPatternChange={(report: string | null) =>
+                setPendingTrade((current) =>
+                  report
+                    ? {
+                        title: report,
+                        type: "scanner",
+                        signal: current?.signal,
+                      }
+                    : null,
+                )
+              }
+              onStrategySignal={(signal) =>
+                setPendingTrade(
+                  signal
+                    ? {
+                        title: signal.report,
+                        type: "scanner",
+                        signal,
+                      }
+                    : null,
+                )
+              }
             />
 
             <TradingCard
               divRef={entrada2hRef}
               patternReport={pendingTrade?.title ?? null}
-              onPendingChange={(pending) => setPendingTrade(pending)}
+              strategySignal={pendingTrade?.signal}
+              basePrice={data?.price ?? undefined}
+              precoAtual={data?.price ?? null}
+              atrAtual={tf2h?.atr14 ?? null}
+              media20={tf2h?.mas?.ma20 ?? null}
+              media99={tf2h?.mas?.ma99 ?? null}
+              institutionalCandle={tf2h?.lastClosedCandle ?? null}
+              onPendingChange={(pending) =>
+                setPendingTrade((current) =>
+                  pending
+                    ? {
+                        ...pending,
+                        signal: current?.signal,
+                      }
+                    : null,
+                )
+              }
             />
           </div>
 

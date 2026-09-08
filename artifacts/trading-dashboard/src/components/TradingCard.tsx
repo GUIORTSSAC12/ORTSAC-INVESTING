@@ -6,6 +6,10 @@ import {
   getGlobalDotStep,
   useGlobalAnimationClock,
 } from "./globalAnimationClock";
+import * as VemDeCima from "../engine/vem-de-cima";
+import * as VemDeBaixo from "../engine/vem-de-baixo";
+import * as Institucional from "../engine/institucional";
+import type { StrategySignal } from "../types/strategy";
 
 interface TradeStrategy {
   type: 'COMPRA' | 'VENDA';
@@ -21,7 +25,22 @@ interface TradeStrategy {
 interface TradingCardProps {
   divRef?: React.RefObject<HTMLDivElement | null>;
   patternReport?: string | null;          
+  strategySignal?: StrategySignal;
   basePrice?: number;          
+  precoAtual?: number | null;
+  atrAtual?: number | null;
+  media20?: number | null;
+  media99?: number | null;
+  institutionalCandle?: {
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+  } | null;
+  secondInstitutionalCandle?: {
+    close: number;
+  } | null;
+  institutionalPivot?: number | null;
   isInstitutionalActive?: boolean; 
   onPendingChange?: (pending: { title: string; type: string } | null) => void;
 }
@@ -29,7 +48,15 @@ interface TradingCardProps {
 export default function TradingCard({ 
   divRef, 
   patternReport = null, 
+  strategySignal,
   basePrice = 215000.00,
+  precoAtual = null,
+  atrAtual = null,
+  media20 = null,
+  media99 = null,
+  institutionalCandle = null,
+  secondInstitutionalCandle = null,
+  institutionalPivot = null,
   isInstitutionalActive = false,
   onPendingChange
 }: TradingCardProps) {
@@ -56,8 +83,13 @@ export default function TradingCard({
     reportName: string;
     data: TradeStrategy;
   } | null>(null);
+  const [guardianStatus, setGuardianStatus] = useState<string | null>(null);
+  const [guardianCancelled, setGuardianCancelled] = useState(false);
+  const [institutionalStopPct, setInstitutionalStopPct] = useState<number | null>(null);
 
   const lastStopTextRef = useRef<string | null>(null);
+  const onPendingChangeRef = useRef(onPendingChange);
+  onPendingChangeRef.current = onPendingChange;
 
   const playSound = () => {
     try {
@@ -69,10 +101,222 @@ export default function TradingCard({
   };
 
   useEffect(() => {
-    if (onPendingChange) {
-      onPendingChange(pendingStrategy ? { title: pendingStrategy.reportName, type: pendingStrategy.data.type } : null);
+    onPendingChangeRef.current?.(
+      pendingStrategy
+        ? { title: pendingStrategy.reportName, type: pendingStrategy.data.type }
+        : null,
+    );
+  }, [pendingStrategy]);
+
+  // Guardião: reprocessa a engine correspondente sempre que o preço ou o ATR
+  // mudam, sem substituir os valores visuais de entrada, stop e gain.
+  useEffect(() => {
+    setGuardianStatus(null);
+    setGuardianCancelled(false);
+    setInstitutionalStopPct(null);
+
+    if (!strategySignal) return;
+
+    const livePrice = precoAtual ?? basePrice;
+    const liveAtr = atrAtual;
+    let status = `GUARDIÃO ATIVO: ${strategySignal.direction} · ESTRATÉGIA ${strategySignal.strategyId}`;
+    let cancelled = false;
+    let stopPct: number | null = null;
+    let engineResult: { acao: string; status: string } | null = null;
+
+    if (typeof livePrice === "number" && Number.isFinite(livePrice) &&
+        typeof liveAtr === "number" && Number.isFinite(liveAtr)) {
+      const candle = institutionalCandle;
+      const bodyLow = candle ? Math.min(candle.open, candle.close) : livePrice;
+      const bodyHigh = candle ? Math.max(candle.open, candle.close) : livePrice;
+      const media20Valida = media20 == null || !Number.isFinite(media20)
+        ? true
+        : bodyLow > media20;
+      const corpoAbaixoDa99 = media99 == null || !Number.isFinite(media99)
+        ? true
+        : bodyHigh < media99;
+      const media20TocouCorpo = media20 != null && Number.isFinite(media20)
+        ? media20 >= bodyLow && media20 <= bodyHigh
+        : false;
+      const maxima = candle?.high ?? livePrice;
+      const minima = candle?.low ?? livePrice;
+
+      if (strategySignal.direction === "VEM DE CIMA") {
+        switch (strategySignal.strategyId) {
+          case 1:
+            engineResult = VemDeCima.processarEstrategia1VemDeCima({
+              teveToqueNa99DeCima: true,
+              atrAtual: liveAtr,
+            });
+            break;
+          case 2:
+            engineResult = VemDeCima.processarEstrategia2VemDeCima({
+              teveToqueNa99DeCima: true,
+              atrAtual: liveAtr,
+              proximoCandleFechado: true,
+            });
+            break;
+          case 3:
+            engineResult = VemDeCima.processarEstrategia3VemDeCima({
+              teveToqueNa99DeCima: true,
+              atrAtual: liveAtr,
+            });
+            break;
+          case 4:
+            engineResult = VemDeCima.processarEstrategia4VemDeCima({
+              teveToqueNa99DeCima: true,
+              atrAtual: liveAtr,
+              proximoCandleFechado: true,
+            });
+            break;
+          case 5:
+            engineResult = VemDeCima.processarEstrategia5VemDeCima({
+              teveToqueNa99DeCima: true,
+              atrAtual2H: liveAtr,
+              atrAnterior2H: liveAtr - 0.01,
+              fechamentoCorpoAbaixoDaMedia99: media99 == null || livePrice < media99,
+            });
+            break;
+          case 6:
+            engineResult = VemDeCima.processarEstrategia6VemDeCima({
+              teveToqueNa99DeCima: true,
+              atrAtual: liveAtr,
+              precoAtual: livePrice,
+              maximaCandleToque: maxima,
+              minimaCandleToque: minima,
+              estadoAtual: { fase: "AGUARDANDO_ATIVACAO" },
+            });
+            break;
+        }
+      } else {
+        switch (strategySignal.strategyId) {
+          case 1:
+            engineResult = VemDeBaixo.processarEstrategia1VemDeBaixo({
+              teveToqueNa99DeBaixo: true,
+              atrAtual: liveAtr,
+              precoAtual: livePrice,
+              maximaCandleAtual: maxima,
+              estadoAtual: { fase: "MONITORANDO_TOPO" },
+            });
+            break;
+          case 2:
+            engineResult = VemDeBaixo.processarEstrategia2VemDeBaixo({
+              teveToqueNa99DeBaixo: true,
+              atrAtual: liveAtr,
+              toqueOcorreuNoCandleAberto: false,
+              corpoInstitucionalInteiroAcimaDa20: media20Valida,
+              corpoInstitucionalAbaixoDa99: corpoAbaixoDa99,
+              media20TocouCorpoInstitucional: media20TocouCorpo,
+            });
+            break;
+          case 3:
+            engineResult = VemDeBaixo.processarEstrategia3VemDeBaixo({
+              teveToqueNa99DeBaixo: true,
+              atrAtual: liveAtr,
+              precoAtual: livePrice,
+              maximaCandleAtual: maxima,
+              estadoAtual: { fase: "MONITORANDO_MAXIMA" },
+            });
+            break;
+          case 4:
+            engineResult = VemDeBaixo.processarEstrategia4VemDeBaixo({
+              teveToqueNa99DeBaixo: true,
+              atrAtual: liveAtr,
+              precoAtual: livePrice,
+              minimaCandleAnterior: strategySignal.minimaFundoMarcada ?? minima,
+              media20AbaixoDoCorpo: media20Valida,
+              media20TocouApenasPavio: false,
+              estadoAtual: { fase: "MONITORANDO_FUNDO" },
+            });
+            break;
+        }
+      }
+
+      // Regra específica do fundo marcado: o reteste é monitorado pelo preço
+      // em tempo real, e o limiar operacional é exatamente 0.310.
+      if (
+        strategySignal.direction === "VEM DE BAIXO" &&
+        strategySignal.strategyId === 4 &&
+        strategySignal.minimaFundoMarcada != null
+      ) {
+        const minimaMarcada = strategySignal.minimaFundoMarcada;
+        if (livePrice <= minimaMarcada) {
+          if (liveAtr >= 0.310) {
+            cancelled = true;
+            status = `ESTRATÉGIA 4 CANCELADA: preço tocou/rompeu a mínima ${minimaMarcada} com ATR ${liveAtr.toFixed(3)} >= 0.310.`;
+          } else {
+            status = `ESTRATÉGIA 4: mínima ${minimaMarcada} retestada com ATR ${liveAtr.toFixed(3)} < 0.310. COMPRA MANTIDA.`;
+          }
+        } else {
+          status = `ESTRATÉGIA 4: monitorando reteste da mínima ${minimaMarcada} · preço ${livePrice.toFixed(3)}.`;
+        }
+      }
+
+      if (!cancelled && engineResult && ["CANCELAR", "EXCLUSAO"].includes(engineResult.acao)) {
+        cancelled = true;
+        status = engineResult.status;
+      }
+    } else {
+      status = "GUARDIÃO AGUARDANDO PREÇO E ATR ATUAIS";
     }
-  }, [pendingStrategy, onPendingChange]);
+
+    // Regras do institucional são aplicadas à direção de toda entrada.
+    // A segunda validação só é executada quando o candle correspondente é
+    // fornecido, evitando tratar o mesmo candle como primeiro e segundo.
+    if (
+      institutionalCandle &&
+      media20 != null &&
+      Number.isFinite(media20)
+    ) {
+      const ajuste = Institucional.avaliarAjusteStopInstitucional({
+        direcaoOperacao: strategySignal.action === "VENDA" ? "VENDA" : "COMPRA",
+        aberturaCandle: institutionalCandle.open,
+        fechamentoCandle: institutionalCandle.close,
+        media20Gráfico2H: media20,
+      });
+      stopPct = Math.abs(ajuste.novoStop);
+      status = `${status} · INSTITUCIONAL: ${ajuste.motivo}`;
+
+      if (
+        secondInstitutionalCandle &&
+        media99 != null &&
+        Number.isFinite(media99)
+      ) {
+        const segundo = Institucional.avaliarSegundoInstitucional({
+          direcaoOperacao: strategySignal.action === "VENDA" ? "VENDA" : "COMPRA",
+          fechamentoCorpo: secondInstitutionalCandle.close,
+          media99Grafico2H: media99,
+        });
+        status = `${status} · ${segundo.motivo}`;
+        if (segundo.acao === "SAIR_imediato") cancelled = true;
+      }
+    }
+
+    if (institutionalPivot != null && Number.isFinite(institutionalPivot)) {
+      const parede = Institucional.avaliarFiltroExposicaoParede({
+        precoEntrada: basePrice,
+        valorParedePivot: institutionalPivot,
+      });
+      if (!parede.permitirAjusteStop) {
+        stopPct = 0.35;
+        status = `${status} · ${parede.motivo}`;
+      }
+    }
+
+    setGuardianStatus(status);
+    setGuardianCancelled(cancelled);
+    setInstitutionalStopPct(stopPct);
+  }, [
+    strategySignal,
+    precoAtual,
+    basePrice,
+    atrAtual,
+    media20,
+    media99,
+    institutionalCandle,
+    secondInstitutionalCandle,
+    institutionalPivot,
+  ]);
 
   // Processamento principal estritamente baseado no sinal recebido do ScannerCard
   useEffect(() => {
@@ -96,10 +340,14 @@ export default function TradingCard({
       baseStratTitle = incomingReport;
     }
 
-    let isSell = reportUpper.includes("VENDA DIRETA") || reportUpper.includes("VEM DE CIMA");
-    if (reportUpper.includes("COMPRA DIRETA")) {
+    let isSell = strategySignal
+      ? strategySignal.action === "VENDA" ||
+        (strategySignal.action !== "COMPRA" &&
+          (reportUpper.includes("VENDA DIRETA") || reportUpper.includes("VEM DE CIMA")))
+      : reportUpper.includes("VENDA DIRETA") || reportUpper.includes("VEM DE CIMA");
+    if (!strategySignal && reportUpper.includes("COMPRA DIRETA")) {
       isSell = false;
-    } else if (reportUpper.includes("VEM DE BAIXO") && reportUpper.includes("ESTRATÉGIA 1")) {
+    } else if (!strategySignal && reportUpper.includes("VEM DE BAIXO") && reportUpper.includes("ESTRATÉGIA 1")) {
       isSell = false; 
     }
 
@@ -153,7 +401,7 @@ export default function TradingCard({
 
     setActiveReportName(baseStratTitle);
 
-  }, [incomingReport, basePrice, isInstitutionalActive]);
+  }, [incomingReport, strategySignal, basePrice, isInstitutionalActive]);
 
   const handleResetCard = () => {
     if (pendingStrategy) {
@@ -161,22 +409,41 @@ export default function TradingCard({
       setActiveReportName(pendingStrategy.reportName);
       setPendingStrategy(null);
       lastStopTextRef.current = pendingStrategy.data.stopText;
+      setGuardianStatus(null);
+      setGuardianCancelled(false);
+      setInstitutionalStopPct(null);
       playSound(); 
     } else {
       setActiveStrategy(null);
       setActiveReportName(null);
       lastStopTextRef.current = null;
+      setGuardianStatus(null);
+      setGuardianCancelled(false);
+      setInstitutionalStopPct(null);
     }
   };
 
   const isConfirmed = activeStrategy !== null;
   const isSellOperation = activeStrategy?.type === 'VENDA';
+  const renderedStopPct = institutionalStopPct ?? null;
+  const renderedStopValue =
+    activeStrategy && renderedStopPct != null
+      ? Math.round(basePrice * (isSellOperation ? (1 + renderedStopPct / 100) : (1 - renderedStopPct / 100)))
+      : activeStrategy?.stopVal;
+  const renderedStopText =
+    renderedStopPct != null
+      ? `STOP (-${renderedStopPct.toFixed(2)}%)`
+      : activeStrategy?.stopText;
 
-  const statusColor = !isConfirmed 
+  const statusColor = guardianCancelled
+    ? 'text-red-500 drop-shadow-[0_0_10px_#ef4444]'
+    : !isConfirmed
     ? 'text-cyan-300 drop-shadow-[0_0_10px_#22d3ee]' 
     : isSellOperation ? 'text-red-500 drop-shadow-[0_0_10px_#ef4444]' : 'text-blue-500 drop-shadow-[0_0_10px_#3b82f6]';
 
-  const barColor = !isConfirmed 
+  const barColor = guardianCancelled
+    ? 'bg-red-500 shadow-[0_0_12px_#ef4444]'
+    : !isConfirmed
     ? 'bg-cyan-400 shadow-[0_0_12px_#22d3ee]' 
     : isSellOperation ? 'bg-red-500 shadow-[0_0_12px_#ef4444]' : 'bg-blue-500 shadow-[0_0_12px_#3b82f6]';
 
@@ -202,7 +469,11 @@ export default function TradingCard({
 
             <div className="flex items-center mt-1">
               <h2 style={{ fontSize: fontSizeConfig.statusText }} className={`font-bold tracking-wider uppercase transition-colors duration-300 ${statusColor}`}>
-                {isConfirmed ? `${activeStrategy?.type} CONFIRMADA` : 'MONITORANDO SCANNER'}
+                {guardianCancelled
+                  ? 'OPERAÇÃO CANCELADA'
+                  : isConfirmed
+                    ? `${activeStrategy?.type} CONFIRMADA`
+                    : 'MONITORANDO SCANNER'}
               </h2>
               {!isConfirmed && (
                 <span className="inline-flex items-center ml-1 space-x-1">
@@ -246,13 +517,18 @@ export default function TradingCard({
             <div className="text-[10px] text-cyan-300 font-bold truncate mb-1">
               FOCO: {activeReportName}
             </div>
+            {guardianStatus && (
+              <div className={`text-[9px] leading-tight ${guardianCancelled ? "text-red-300" : "text-amber-300"}`}>
+                {guardianStatus}
+              </div>
+            )}
 
             <div className="flex justify-between items-center px-1 py-0.5">
               <span style={{ fontSize: fontSizeConfig.labelPx }} className={`${activeStrategy.stopClass} font-bold uppercase tracking-wider`}>
-                {activeStrategy.stopText}
+                {renderedStopText}
               </span>
               <span style={{ fontSize: fontSizeConfig.valuePx }} className={`${activeStrategy.stopClass} font-bold tracking-wide drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]`}>
-                {activeStrategy.stopVal.toLocaleString('pt-BR')}
+                {renderedStopValue?.toLocaleString('pt-BR')}
               </span>
             </div>
 

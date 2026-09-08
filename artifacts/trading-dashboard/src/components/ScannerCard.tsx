@@ -12,12 +12,14 @@ import * as VemDeCima from "../engine/vem-de-cima";
 import * as VemDeBaixo from "../engine/vem-de-baixo";
 import * as Regras from "../engine/Regras";
 import * as Validacao from "../engine/validação";
+import type { StrategyId, StrategySignal } from "../types/strategy";
 
 interface ScannerCardProps {
   divRef?: React.RefObject<HTMLDivElement | null>;
   patternReport?: string | null;
   timeRemaining?: string | null;
   onPatternChange?: (report: string | null) => void;
+  onStrategySignal?: (signal: StrategySignal | null) => void;
   
   // Dados de mercado repassados em tempo real
   atrAtual?: number;
@@ -32,7 +34,13 @@ interface ScannerCardProps {
 
 function formatStrategyMessage(
   direcao: "VEM DE CIMA" | "VEM DE BAIXO",
-  resultado: { status: string; acao?: string | null },
+  resultado: {
+    status: string;
+    acao?: string | null;
+    stopLoss?: number;
+    takeProfit?: number;
+    minimaFundoMarcada?: number;
+  },
   regiaoAtr: string,
 ): string | null {
   const acao = resultado.acao?.trim().toUpperCase();
@@ -46,6 +54,7 @@ export default function ScannerCard({
   patternReport = null,
   timeRemaining = "02:00:00",
   onPatternChange,
+  onStrategySignal,
   atrAtual = 0.400,
   corFundoMedia20 = "AZUL",
   candleFechado = true,
@@ -84,8 +93,10 @@ export default function ScannerCard({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const hasAlertedRef = useRef(false);
   const onPatternChangeRef = useRef(onPatternChange);
+  const onStrategySignalRef = useRef(onStrategySignal);
   const patternReportRef = useRef(patternReport);
   onPatternChangeRef.current = onPatternChange;
+  onStrategySignalRef.current = onStrategySignal;
   patternReportRef.current = patternReport;
 
   const testIndexRef = useRef(0);
@@ -157,19 +168,40 @@ export default function ScannerCard({
         if (!resultadoRegras.permitido) return;
 
         const mensagemAtiva = { value: null as string | null };
+        const estrategiaAtiva = { value: null as StrategySignal | null };
 
         // ==========================================
         // CAMADA 3: DISPARO DA ENGINE USANDO A DIREÇÃO APROVADA
         // ==========================================
         if (validacaoToque.direcao === "VEM_DE_CIMA") {
           const toqueCima = teveToqueNa99;
-          const aplicarResultado = (resultado: { status: string; acao?: string | null }) => {
+          const aplicarResultado = (
+            strategyId: StrategyId,
+            resultado: {
+              status: string;
+              acao?: string | null;
+              stopLoss?: number;
+              takeProfit?: number;
+              minimaFundoMarcada?: number;
+            },
+          ) => {
             const mensagem = formatStrategyMessage(
               "VEM DE CIMA",
               resultado,
               validacaoToque.regiaoAtr,
             );
-            if (mensagem) mensagemAtiva.value = mensagem;
+            if (mensagem) {
+              mensagemAtiva.value = mensagem;
+              estrategiaAtiva.value = {
+                report: mensagem,
+                direction: "VEM DE CIMA",
+                strategyId,
+                action: resultado.acao!.trim().toUpperCase(),
+                stopLoss: resultado.stopLoss,
+                takeProfit: resultado.takeProfit,
+                minimaFundoMarcada: resultado.minimaFundoMarcada,
+              };
+            }
           };
 
           // Estratégia 1: Vem de Cima
@@ -177,7 +209,7 @@ export default function ScannerCard({
             teveToqueNa99DeCima: toqueCima,
             atrAtual,
           });
-          aplicarResultado(res1Cima);
+          aplicarResultado(1, res1Cima);
 
           // Estratégia 2: Vem de Cima
           const res2Cima = VemDeCima.processarEstrategia2VemDeCima({
@@ -188,14 +220,14 @@ export default function ScannerCard({
           });
           if (res2Cima.novoAtrReferencia !== undefined) setAtrRefCima2(res2Cima.novoAtrReferencia);
           if (res2Cima.limparReferencia) setAtrRefCima2(undefined);
-          aplicarResultado(res2Cima);
+          aplicarResultado(2, res2Cima);
 
           // Estratégia 3: Vem de Cima (Zona de Exclusão)
           const res3Cima = VemDeCima.processarEstrategia3VemDeCima({
             teveToqueNa99DeCima: toqueCima,
             atrAtual,
           });
-          aplicarResultado(res3Cima);
+          aplicarResultado(3, res3Cima);
 
           // Estratégia 4: Vem de Cima (Reversão de Fluxo)
           const res4Cima = VemDeCima.processarEstrategia4VemDeCima({
@@ -206,7 +238,7 @@ export default function ScannerCard({
           });
           if (res4Cima.novoAtrReferencia !== undefined) setAtrRefCima4(res4Cima.novoAtrReferencia);
           if (res4Cima.limparReferencia) setAtrRefCima4(undefined);
-          aplicarResultado(res4Cima);
+          aplicarResultado(4, res4Cima);
 
           // Estratégia 5: Vem de Cima
           const res5Cima = VemDeCima.processarEstrategia5VemDeCima({
@@ -215,7 +247,7 @@ export default function ScannerCard({
             atrAnterior2H: atrAtual - 0.01,
             fechamentoCorpoAbaixoDaMedia99: precoAtual < 100,
           });
-          aplicarResultado(res5Cima);
+          aplicarResultado(5, res5Cima);
 
           // Estratégia 6: Vem de Cima (Reteste de Topo Dinâmico)
           const res6Cima = VemDeCima.processarEstrategia6VemDeCima({
@@ -227,18 +259,38 @@ export default function ScannerCard({
             estadoAtual: estadoEst6Cima,
           });
           setEstadoEst6Cima(res6Cima.novoEstado);
-          aplicarResultado(res6Cima);
+          aplicarResultado(6, res6Cima);
 
         } 
         else if (validacaoToque.direcao === "VEM_DE_BAIXO") {
           const toqueBaixo = teveToqueNa99;
-          const aplicarResultado = (resultado: { status: string; acao?: string | null }) => {
+          const aplicarResultado = (
+            strategyId: StrategyId,
+            resultado: {
+              status: string;
+              acao?: string | null;
+              stopLoss?: number;
+              takeProfit?: number;
+              minimaFundoMarcada?: number;
+            },
+          ) => {
             const mensagem = formatStrategyMessage(
               "VEM DE BAIXO",
               resultado,
               validacaoToque.regiaoAtr,
             );
-            if (mensagem) mensagemAtiva.value = mensagem;
+            if (mensagem) {
+              mensagemAtiva.value = mensagem;
+              estrategiaAtiva.value = {
+                report: mensagem,
+                direction: "VEM DE BAIXO",
+                strategyId,
+                action: resultado.acao!.trim().toUpperCase(),
+                stopLoss: resultado.stopLoss,
+                takeProfit: resultado.takeProfit,
+                minimaFundoMarcada: resultado.minimaFundoMarcada,
+              };
+            }
           };
 
           // Estratégia 1: Vem de Baixo
@@ -250,7 +302,7 @@ export default function ScannerCard({
             estadoAtual: estadoEst1Baixo,
           });
           setEstadoEst1Baixo(res1Baixo.novoEstado);
-          aplicarResultado(res1Baixo);
+          aplicarResultado(1, res1Baixo);
 
           // Estratégia 2: Vem de Baixo
           const res2Baixo = VemDeBaixo.processarEstrategia2VemDeBaixo({
@@ -261,7 +313,7 @@ export default function ScannerCard({
             corpoInstitucionalAbaixoDa99: true,
             media20TocouCorpoInstitucional: false,
           });
-          aplicarResultado(res2Baixo);
+          aplicarResultado(2, res2Baixo);
 
           // Estratégia 3: Vem de Baixo
           const res3Baixo = VemDeBaixo.processarEstrategia3VemDeBaixo({
@@ -272,7 +324,7 @@ export default function ScannerCard({
             estadoAtual: estadoEst3Baixo,
           });
           setEstadoEst3Baixo(res3Baixo.novoEstado);
-          aplicarResultado(res3Baixo);
+          aplicarResultado(3, res3Baixo);
 
           // Estratégia 4: Vem de Baixo
           const res4Baixo = VemDeBaixo.processarEstrategia4VemDeBaixo({
@@ -285,15 +337,22 @@ export default function ScannerCard({
             estadoAtual: estadoEst4Baixo,
           });
           setEstadoEst4Baixo(res4Baixo.novoEstado);
-          aplicarResultado(res4Baixo);
+          aplicarResultado(4, res4Baixo);
         }
 
         const mensagemFinal = mensagemAtiva.value;
         if (mensagemFinal) {
           const mensagemMaiuscula = mensagemFinal.toUpperCase();
+          const sinal = estrategiaAtiva.value;
           setConfirmedReport(mensagemMaiuscula);
           setIsConfirmed(true);
-          onPatternChange?.(mensagemMaiuscula);
+          onPatternChangeRef.current?.(mensagemMaiuscula);
+          if (sinal) {
+            onStrategySignalRef.current?.({
+              ...sinal,
+              report: mensagemMaiuscula,
+            });
+          }
         }
 
       } catch (err) {
@@ -302,7 +361,7 @@ export default function ScannerCard({
     }, 2000);
 
     return () => clearInterval(monitoringInterval);
-  }, [testReport, isConfirmed, atrAtual, corFundoMedia20, candleFechado, teveToqueNa99, precoAtual, valorMedia99, maximaCandle, minimaCandle, estadoEst6Cima, estadoEst1Baixo, estadoEst3Baixo, estadoEst4Baixo, atrRefCima2, atrRefCima4, onPatternChange]);
+  }, [testReport, isConfirmed, atrAtual, corFundoMedia20, candleFechado, teveToqueNa99, precoAtual, valorMedia99, maximaCandle, minimaCandle, estadoEst6Cima, estadoEst1Baixo, estadoEst3Baixo, estadoEst4Baixo, atrRefCima2, atrRefCima4]);
 
   // ==========================================
   // GERENCIAMENTO DO TEMPORIZADOR DE 10 MINUTOS
@@ -329,6 +388,7 @@ export default function ScannerCard({
         setConfirmedReport(null);
         if (patternReportRef.current === null) setTestReport(null);
         onPatternChangeRef.current?.(null);
+        onStrategySignalRef.current?.(null);
         timerRef.current = null;
       }, 10 * 60 * 1000);
     }
@@ -364,66 +424,94 @@ export default function ScannerCard({
     setDisplayIndex(nextIndex);
 
     let reportResult: string | null = null;
+    const testSignal = { value: null as StrategySignal | null };
+    const createTestSignal = (
+      direction: StrategySignal["direction"],
+      strategyId: StrategyId,
+      resultado: {
+        status: string;
+        acao?: string | null;
+        stopLoss?: number;
+        takeProfit?: number;
+        minimaFundoMarcada?: number;
+      },
+    ) => {
+      const report = formatStrategyMessage(direction, resultado, "TESTE");
+      if (report) {
+        testSignal.value = {
+          report,
+          direction,
+          strategyId,
+          action: resultado.acao!.trim().toUpperCase(),
+          stopLoss: resultado.stopLoss,
+          takeProfit: resultado.takeProfit,
+          minimaFundoMarcada: resultado.minimaFundoMarcada,
+        };
+      }
+      return report;
+    };
+
     switch (nextIndex) {
       case 1:
-        reportResult = formatStrategyMessage(
+        reportResult = createTestSignal(
           "VEM DE CIMA",
+          1,
           VemDeCima.processarEstrategia1VemDeCima({
             teveToqueNa99DeCima: true,
             atrAtual: 0.45,
           }),
-          "TESTE",
         );
         break;
       case 2:
-        reportResult = formatStrategyMessage(
+        reportResult = createTestSignal(
           "VEM DE CIMA",
+          2,
           VemDeCima.processarEstrategia2VemDeCima({
             teveToqueNa99DeCima: true,
             atrAtual: 0.55,
             atrReferenciaSalvo: 0.6,
             proximoCandleFechado: true,
           }),
-          "TESTE",
         );
         break;
       case 3:
-        reportResult = formatStrategyMessage(
+        reportResult = createTestSignal(
           "VEM DE CIMA",
+          3,
           VemDeCima.processarEstrategia3VemDeCima({
             teveToqueNa99DeCima: true,
             atrAtual: 0.505,
           }),
-          "TESTE",
         );
         break;
       case 4:
-        reportResult = formatStrategyMessage(
+        reportResult = createTestSignal(
           "VEM DE CIMA",
+          4,
           VemDeCima.processarEstrategia4VemDeCima({
             teveToqueNa99DeCima: true,
             atrAtual: 0.4,
             atrReferenciaSalvo: 0.35,
             proximoCandleFechado: true,
           }),
-          "TESTE",
         );
         break;
       case 5:
-        reportResult = formatStrategyMessage(
+        reportResult = createTestSignal(
           "VEM DE CIMA",
+          5,
           VemDeCima.processarEstrategia5VemDeCima({
             teveToqueNa99DeCima: true,
             atrAtual2H: 0.33,
             atrAnterior2H: 0.2,
             fechamentoCorpoAbaixoDaMedia99: true,
           }),
-          "TESTE",
         );
         break;
       case 6:
-        reportResult = formatStrategyMessage(
+        reportResult = createTestSignal(
           "VEM DE CIMA",
+          6,
           VemDeCima.processarEstrategia6VemDeCima({
             teveToqueNa99DeCima: true,
             atrAtual: 0.25,
@@ -432,12 +520,12 @@ export default function ScannerCard({
             minimaCandleToque: 99.5,
             estadoAtual: { fase: "AGUARDANDO_ATIVACAO" },
           }),
-          "TESTE",
         );
         break;
       case 7:
-        reportResult = formatStrategyMessage(
+        reportResult = createTestSignal(
           "VEM DE BAIXO",
+          1,
           VemDeBaixo.processarEstrategia1VemDeBaixo({
             teveToqueNa99DeBaixo: true,
             atrAtual: 0.6,
@@ -445,12 +533,12 @@ export default function ScannerCard({
             maximaCandleAtual: 100.5,
             estadoAtual: { fase: "MONITORANDO_TOPO" },
           }),
-          "TESTE",
         );
         break;
       case 8:
-        reportResult = formatStrategyMessage(
+        reportResult = createTestSignal(
           "VEM DE BAIXO",
+          2,
           VemDeBaixo.processarEstrategia2VemDeBaixo({
             teveToqueNa99DeBaixo: true,
             atrAtual: 0.45,
@@ -459,12 +547,12 @@ export default function ScannerCard({
             corpoInstitucionalAbaixoDa99: true,
             media20TocouCorpoInstitucional: false,
           }),
-          "TESTE",
         );
         break;
       case 9:
-        reportResult = formatStrategyMessage(
+        reportResult = createTestSignal(
           "VEM DE BAIXO",
+          3,
           VemDeBaixo.processarEstrategia3VemDeBaixo({
             teveToqueNa99DeBaixo: true,
             atrAtual: 0.375,
@@ -472,12 +560,12 @@ export default function ScannerCard({
             maximaCandleAtual: 100.5,
             estadoAtual: { fase: "MONITORANDO_MAXIMA" },
           }),
-          "TESTE",
         );
         break;
       case 10:
-        reportResult = formatStrategyMessage(
+        reportResult = createTestSignal(
           "VEM DE BAIXO",
+          4,
           VemDeBaixo.processarEstrategia4VemDeBaixo({
             teveToqueNa99DeBaixo: true,
             atrAtual: 0.25,
@@ -487,7 +575,6 @@ export default function ScannerCard({
             media20TocouApenasPavio: false,
             estadoAtual: { fase: "MONITORANDO_FUNDO" },
           }),
-          "TESTE",
         );
         break;
       case 0:
@@ -508,10 +595,23 @@ export default function ScannerCard({
       setIsConfirmed(false);
       setConfirmedReport(null);
       onPatternChange?.(null);
+      onStrategySignalRef.current?.(null);
     } else {
       setConfirmedReport(finalResult);
       setIsConfirmed(true);
       onPatternChange?.(finalResult);
+      const signal = testSignal.value;
+      if (signal !== null) {
+        onStrategySignalRef.current?.({
+          report: finalResult,
+          direction: signal.direction,
+          strategyId: signal.strategyId,
+          action: signal.action,
+          stopLoss: signal.stopLoss,
+          takeProfit: signal.takeProfit,
+          minimaFundoMarcada: signal.minimaFundoMarcada,
+        });
+      }
     }
   };
 

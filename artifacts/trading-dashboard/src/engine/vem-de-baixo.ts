@@ -263,14 +263,11 @@ export function processarEstrategia3VemDeBaixo(dados: DadosEstrategia3VemDeBaixo
   };
 }
 // ==========================================
-// ESTRATÉGIA 4: VEM DE BAIXO - COMPRA EM FUNDO COM ALVO ADAPTATIVO (ATR < 0.350)
+// ESTRATÉGIA 4: VEM DE BAIXO - COMPRA DIRETA COM SUPORTE AO TRADINGCARD
 // ==========================================
 
 export interface EstadoEstrategia4VemDeBaixo {
-  fase: "MONITORANDO_FUNDO" | "AGUARDANDO_TESTE_FUNDO";
-  minimaFundoMarcada?: number;
-  tipoTopoAlvo?: "PADRAO" | "VEM_DE_CIMA_ATR_MENOR_0310" | "VEM_DE_BAIXO_ATR_MAIOR_0510";
-  valorTopoAlvo?: number;
+  fase: "MONITORANDO_FUNDO";
 }
 
 export interface DadosEstrategia4VemDeBaixo {
@@ -280,18 +277,15 @@ export interface DadosEstrategia4VemDeBaixo {
   minimaCandleAnterior: number;
   media20AbaixoDoCorpo: boolean;
   media20TocouApenasPavio: boolean;
-  topoAlvoAtivo?: {
-    tipo: "VEM_DE_CIMA_ATR_MENOR_0310" | "VEM_DE_BAIXO_ATR_MAIOR_0510";
-    valor: number;
-  };
   estadoAtual: EstadoEstrategia4VemDeBaixo;
 }
 
 export interface ResultadoEstrategia4VemDeBaixo {
-  acao: "COMPRA" | "CANCELAR" | "AGUARDAR" | "IGNORADO";
+  acao: "COMPRA" | "CANCELAR" | "IGNORADO";
   status: string;
   stopLoss: number;
   takeProfit: number;
+  minimaFundoMarcada?: number;
   novoEstado: EstadoEstrategia4VemDeBaixo;
 }
 
@@ -300,11 +294,10 @@ export interface ResultadoEstrategia4VemDeBaixo {
  */
 export function processarEstrategia4VemDeBaixo(dados: DadosEstrategia4VemDeBaixo): ResultadoEstrategia4VemDeBaixo {
 
-  let estado = { ...dados.estadoAtual };
   const atr = dados.atrAtual;
 
-  // 1. Condição de Ativação Inicial: Toque vindo de baixo com ATR < 0.350
-  if (dados.teveToqueNa99DeBaixo && atr < 0.350 && estado.fase === "MONITORANDO_FUNDO") {
+  // Condição de Ativação Inicial: Toque vindo de baixo com ATR < 0.350
+  if (dados.teveToqueNa99DeBaixo && atr < 0.350) {
 
     // Filtro da Média 20 Obrigatório:
     // - Deve estar totalmente abaixo do candle anterior (ou tocando apenas no pavio inferior).
@@ -316,75 +309,29 @@ export function processarEstrategia4VemDeBaixo(dados: DadosEstrategia4VemDeBaixo
         status: "Estratégia 4 Invalidada: Média 20 está cortando o corpo do candle anterior.",
         stopLoss: 0.35,
         takeProfit: 0.70,
-        novoEstado: estado
+        novoEstado: { fase: "MONITORANDO_FUNDO" }
       };
     }
 
     const minimaFundo = dados.minimaCandleAnterior;
 
+    // Retorna a COMPRA direta para o ScannerCard e repassa a mínima marcada
+    // para o TradingCard monitorar o reteste e aplicar a regra do ATR >= 0.310
     return {
-      acao: "AGUARDAR",
-      status: "Estratégia 4 Ativada: Fundo marcado na mínima do candle anterior. Aguardando teste de preço.",
+      acao: "COMPRA",
+      status: `Estratégia 4 Confirmada: Compra executada. Fundo marcado na mínima (${minimaFundo}).`,
       stopLoss: 0.35,
-      takeProfit: 0.70,
-      novoEstado: {
-        fase: "AGUARDANDO_TESTE_FUNDO",
-        minimaFundoMarcada: minimaFundo
-      }
+      takeProfit: 0.70, // Take fixo operacional padrão
+      minimaFundoMarcada: minimaFundo,
+      novoEstado: { fase: "MONITORANDO_FUNDO" }
     };
-  }
-
-  // 2. Monitoramento do Teste/Retorno no Fundo Marcado
-  if (estado.fase === "AGUARDANDO_TESTE_FUNDO" && estado.minimaFundoMarcada !== undefined) {
-    const fundoMarcado = estado.minimaFundoMarcada;
-
-    // Quando o preço retorna e toca na região do fundo marcado (ou via gap de baixa)
-    if (dados.precoAtual <= fundoMarcado) {
-
-      // Filtro de Volatilidade no Momento do Teste (ATR do Card)
-      // Se no momento do toque o ATR estiver acima de 0.310, o fundo é imediatamente cancelado
-      if (atr >= 0.310) {
-        return {
-          acao: "CANCELAR",
-          status: "Estratégia 4 Cancelada no Teste: ATR atual >= 0.310 na hora do toque no fundo.",
-          stopLoss: 0.35,
-          takeProfit: 0.70,
-          novoEstado: { fase: "MONITORANDO_FUNDO" } // Reseta
-        };
-      }
-
-      // Se o ATR estiver abaixo de 0.310, a compra é validada!
-      // Cálculo do Alvo Adaptativo (Gain):
-      let gainFinal = 0.70; // Padrão
-
-      if (dados.topoAlvoAtivo) {
-        const valorTopo = dados.topoAlvoAtivo.valor;
-        const distanciaPercentualTopo = ((valorTopo - dados.precoAtual) / dados.precoAtual) * 100;
-
-        if (dados.topoAlvoAtivo.tipo === "VEM_DE_CIMA_ATR_MENOR_0310") {
-          // Se o topo for do Vem de Cima (ATR < 0.310), o gain passa a ser nele, travado no limite máximo de 0.70%
-          gainFinal = Math.min(distanciaPercentualTopo, 0.70);
-        } else if (dados.topoAlvoAtivo.tipo === "VEM_DE_BAIXO_ATR_MAIOR_0510") {
-          // Exceção de reversão imediata tratada na saída, mas o gain respeita a estrutura
-          gainFinal = Math.min(distanciaPercentualTopo, 0.70);
-        }
-      }
-
-      return {
-        acao: "COMPRA",
-        status: `Estratégia 4 Confirmada: Compra executada no fundo. Alvo adaptativo definido em ${gainFinal}%.`,
-        stopLoss: 0.35,
-        takeProfit: gainFinal,
-        novoEstado: { fase: "MONITORANDO_FUNDO" } // Reseta após a execução
-      };
-    }
   }
 
   return {
     acao: "IGNORADO",
-    status: "Estratégia 4 (Vem de Baixo) aguardando teste no fundo marcado.",
+    status: "Estratégia 4 (Vem de Baixo) monitorando toque na média 99.",
     stopLoss: 0.35,
     takeProfit: 0.70,
-    novoEstado: estado
+    novoEstado: { fase: "MONITORANDO_FUNDO" }
   };
 }
