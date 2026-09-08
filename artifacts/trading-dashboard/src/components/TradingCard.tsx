@@ -25,6 +25,11 @@ interface TradeStrategy {
 const PROTECTION_TRIGGER_PCT = 0.50;
 const PROTECTED_STOP_PCT = 0.10;
 
+const formatForexPrice = (value: number | null | undefined): string => {
+  if (value == null || !Number.isFinite(value)) return "—";
+  return String(value);
+};
+
 interface TradingCardProps {
   divRef?: React.RefObject<HTMLDivElement | null>;
   patternReport?: string | null;          
@@ -587,7 +592,7 @@ export default function TradingCard({
                 {renderedStopText}
               </span>
               <span style={{ fontSize: fontSizeConfig.valuePx }} className={`${renderedStopClass} font-bold tracking-wide drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]`}>
-                {renderedStopValue?.toLocaleString('pt-BR')}
+                {formatForexPrice(renderedStopValue)}
               </span>
             </div>
 
@@ -596,7 +601,7 @@ export default function TradingCard({
                 Entrada
               </span>
               <span style={{ fontSize: fontSizeConfig.valuePx }} className="text-cyan-200 font-bold tracking-wide drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
-                {activeStrategy.entry.toLocaleString('pt-BR')}
+                {formatForexPrice(activeStrategy.entry)}
               </span>
             </div>
 
@@ -605,7 +610,7 @@ export default function TradingCard({
                 {activeStrategy.gainText}
               </span>
               <span style={{ fontSize: fontSizeConfig.valuePx }} className="text-emerald-600 font-bold tracking-wide drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
-                {activeStrategy.gainVal.toLocaleString('pt-BR')}
+                {formatForexPrice(activeStrategy.gainVal)}
               </span>
             </div>
           </div>
