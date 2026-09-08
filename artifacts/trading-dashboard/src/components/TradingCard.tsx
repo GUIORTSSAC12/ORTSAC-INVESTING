@@ -27,7 +27,7 @@ const PROTECTED_STOP_PCT = 0.10;
 
 const formatForexPrice = (value: number | null | undefined): string => {
   if (value == null || !Number.isFinite(value)) return "—";
-  return String(value);
+  return Number(value.toFixed(3)).toFixed(3);
 };
 
 interface TradingCardProps {
@@ -74,6 +74,7 @@ export default function TradingCard({
     precoAtual > 0
       ? precoAtual
       : basePrice;
+  const calculationPrice = Number(referencePrice.toFixed(3));
 
   const fontSizeConfig = {
     cardTitle: '16px',
@@ -390,13 +391,17 @@ export default function TradingCard({
     let sText = `STOP (-${stopPct.toFixed(2)}%)`;
 
     // CORREÇÃO DO CÁLCULO DO STOP (Antes estava fixado em 0)
-    const sVal = referencePrice * (isSell ? (1 + stopPct / 100) : (1 - stopPct / 100));
-    const gVal = referencePrice * (isSell ? (1 - gainPctNum / 100) : (1 + gainPctNum / 100));
+    const sVal = Number(
+      (calculationPrice * (isSell ? (1 + stopPct / 100) : (1 - stopPct / 100))).toFixed(3),
+    );
+    const gVal = Number(
+      (calculationPrice * (isSell ? (1 - gainPctNum / 100) : (1 + gainPctNum / 100))).toFixed(3),
+    );
 
     const newCalculatedData: TradeStrategy = {
       type: isSell ? 'VENDA' : 'COMPRA',
       title: baseStratTitle.toUpperCase(),
-      entry: referencePrice,
+      entry: calculationPrice,
       stopVal: sVal,
       gainVal: gVal,
       stopText: sText,
@@ -487,7 +492,12 @@ export default function TradingCard({
     : institutionalStopPct ?? null;
   const renderedStopValue =
     activeStrategy && renderedStopPct != null
-      ? activeStrategy.entry * (isSellOperation ? (1 - renderedStopPct / 100) : (1 + renderedStopPct / 100))
+      ? Number(
+          (
+            activeStrategy.entry *
+            (isSellOperation ? (1 - renderedStopPct / 100) : (1 + renderedStopPct / 100))
+          ).toFixed(3),
+        )
       : activeStrategy?.stopVal;
   const renderedStopText =
     isStopProtected
