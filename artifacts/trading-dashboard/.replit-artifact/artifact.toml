@@ -1,6 +1,6 @@
 kind = "web"
 previewPath = "/"
-title = "GBP/JPY Trading Dashboard"
+title = "ORTSAC INVESTING"
 version = "1.0.0"
 id = "artifacts/trading-dashboard"
 router = "path"

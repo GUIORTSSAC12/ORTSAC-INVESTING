@@ -145,7 +145,7 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MediasAtrCa
     }
   }, [candles4h, valorEntrada, rompido]);
 
-  // 2. Após romper, espera o candle fechar e avalia a direção
+  // 2. Após romper, espera o candle fechar e avalia a direção corrigida
   useEffect(() => {
     if (!rompido || candleAlvoTimestamp === null || candles4h.length === 0 || !valorEntrada) return;
 
@@ -165,19 +165,23 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MediasAtrCa
       const precoFechamento = candleTocado.close;
       const precoAbertura = candleTocado.open;
 
+      // Identifica se é Operação de Venda (Topo) ou Compra (Fundo) baseado na Abertura
       const ehOperacaoDeVenda = numEntrada < precoAbertura;
-      let condicaoSucesso = false;
+      let alarmeVermelho = false;
 
       if (ehOperacaoDeVenda) {
-        condicaoSucesso = precoFechamento < numEntrada;
+        // TOPO (Venda): Se fechou ACIMA da entrada, deu ruim (rompeu contra a venda) -> Vermelho + Som
+        alarmeVermelho = precoFechamento > numEntrada;
       } else {
-        condicaoSucesso = precoFechamento > numEntrada;
+        // FUNDO (Compra): Se fechou ABAIXO da entrada, deu ruim (rompeu contra a compra) -> Vermelho + Som
+        alarmeVermelho = precoFechamento < numEntrada;
       }
 
       setValorSaida(precoFechamento.toFixed(3));
-      setStatusCor(condicaoSucesso ? "vermelho" : "azul");
+      // Se alarmeVermelho for true, fica vermelho. Se for false (a favor), fica azul.
+      setStatusCor(alarmeVermelho ? "vermelho" : "azul");
 
-      if (condicaoSucesso) {
+      if (alarmeVermelho) {
         playSound();
       }
     } else {
@@ -265,7 +269,7 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MediasAtrCa
           </div>
         </div>
 
-        {/* BLOCO INFERIOR: MARGEM COM TÍTULO NO TOPO CENTRALIZADO E VALOR EM 40PX */}
+        {/* BLOCO INFERIOR: MARGEM */}
         <div className="flex-1 flex flex-col">
           <div className="rounded-xl border border-[#4a4a4a] p-3 flex-1 bg-black flex flex-col justify-center items-center">
             <span className="font-semibold text-cyan-300 text-base tracking-wide mb-1">

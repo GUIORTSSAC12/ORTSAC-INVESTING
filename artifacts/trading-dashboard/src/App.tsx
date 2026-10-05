@@ -18,7 +18,7 @@ import TradingCard from "./components/TradingCard";
 import type { StrategySignal } from "./types/strategy";
 import Minigrafico from "./components/Minigrafico";
 import SaldoTaxaMargem from "./components/saldotaxamargem";
-import { GestaoDeRisco } from './components/GestaoDeRisco';
+import { GestaoDeRisco } from "./components/GestaoDeRisco";
 import { MediasAtrCard } from "./components/Monitor";
 
 const AUTH_KEY = "dashboard_auth_v1";
@@ -96,7 +96,7 @@ function Login({ onSuccess }: { onSuccess: () => void }) {
             <Lock className="h-5 w-5 text-blue-400" />
           </div>
           <h1 className="mt-4 text-lg font-semibold tracking-tight">
-            Trading Dashboard
+            ORTSAC INVESTING
           </h1>
           <p className="mt-1 text-xs text-muted-foreground">Acesso restrito</p>
         </div>
@@ -479,10 +479,12 @@ function Index({ onLogout }: { onLogout: () => void }) {
     title: string;
     type: string;
   } | null>(null);
-  
+
   // Estado para armazenar a validação selecionada
-  const [selectedValidation, setSelectedValidation] = useState<string | null>(null);
-  
+  const [selectedValidation, setSelectedValidation] = useState<string | null>(
+    null,
+  );
+
   // ==========================================
   // 1. ADICIONADO: Gatilho para forçar o fetch imediato
   // ==========================================
@@ -514,7 +516,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
   const [marketBannerShift, setMarketBannerShift] = useState(0);
   const [entrada2hHeight, setEntrada2hHeight] = useState(0);
   const [tradeMinigrafico, setTradeMinigrafico] = useState<any>(null);
- const [ptaxVenda, setPtaxVenda] = useState("--");
+  const [ptaxVenda, setPtaxVenda] = useState("--");
 
   useEffect(() => {
     fetch(
@@ -528,9 +530,12 @@ function Index({ onLogout }: { onLogout: () => void }) {
           const regexCSV = /(?:^|,)("(?:[^"]|"")*"|[^,]*)/g;
           let match;
           const colunasLinha9 = [];
-          
+
           while ((match = regexCSV.exec(linhas[8])) !== null) {
-            let valor = match[1].replace(/^"|"$/g, "").replace(/""/g, '"').trim();
+            let valor = match[1]
+              .replace(/^"|"$/g, "")
+              .replace(/""/g, '"')
+              .trim();
             colunasLinha9.push(valor);
             if (match.index === regexCSV.lastIndex) regexCSV.lastIndex++;
           }
@@ -554,7 +559,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
     return () => ro.disconnect();
   }, []);
 
- useLayoutEffect(() => {
+  useLayoutEffect(() => {
     const alignMarketBanner = () => {
       const macroBottom =
         macroVolatilityRef.current?.getBoundingClientRect().bottom;
@@ -565,9 +570,9 @@ function Index({ onLogout }: { onLogout: () => void }) {
       const currentTransform = wrapper.style.transform;
       wrapper.style.transform = "translateY(0px)";
       // Adicionei um "+ 20" (ou o valor que preferir) logo aqui no topo natural do banner:
-      const naturalBannerTop = banner.getBoundingClientRect().top - 24; 
+      const naturalBannerTop = banner.getBoundingClientRect().top - 24;
       wrapper.style.transform = currentTransform;
-      
+
       setMarketBannerShift(Math.round(macroBottom - naturalBannerTop));
     };
 
@@ -583,18 +588,16 @@ function Index({ onLogout }: { onLogout: () => void }) {
     };
   }, []);
 
-
-
   useEffect(() => {
     setNow(new Date());
     const id = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(id);
   }, []);
-  
+
   // ==========================================
   // 3. ADICIONADO: Observa o cronômetro para zerar o atraso na hora
   // ==========================================
-  
+
   useEffect(() => {
     let cancelled = false;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -871,9 +874,9 @@ function Index({ onLogout }: { onLogout: () => void }) {
     return `${h}:${m}:${s}`;
   };
 
-// Calcula direto o próximo fechamento de 4 horas, sem acréscimo de segundos
-const rawMs = (nextCloseMs(4) ?? 0);
-const closeIn4h = fmtCountdown(rawMs);
+  // Calcula direto o próximo fechamento de 4 horas, sem acréscimo de segundos
+  const rawMs = nextCloseMs(4) ?? 0;
+  const closeIn4h = fmtCountdown(rawMs);
 
   return (
     <div className="min-h-screen bg-black text-foreground font-mono">
@@ -881,7 +884,7 @@ const closeIn4h = fmtCountdown(rawMs);
         <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="text-base font-semibold tracking-tight">
-              Trading Dashboard
+              ORTSAC INVESTING
             </h1>
             <p className="text-xs text-muted-foreground">
               Fonte: BingX · Atualização a cada {POLL_MS / 1000}s
@@ -1051,92 +1054,100 @@ const closeIn4h = fmtCountdown(rawMs);
               macroVolatilityRef={macroVolatilityRef}
             />
             <div className="grid grid-cols-2 gap-2">
-              <SaldoTaxaMargem/>
+              <SaldoTaxaMargem />
               <CloseInCard title="4H FECHA EM" value={closeIn4h} />
             </div>
           </div>
         </section>
-          <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2 items-start">
+        <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2 items-start">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <ScannerCard
-  divRef={entrada2hRef}
-  selectedValidation={selectedValidation}
-  precoAtual={data?.price ?? undefined}
-  onPatternChange={(report: string | null) => {
-    if (!report) {
-      setSelectedValidation(null);
-      setPendingTrade(null);
-      return;
-    }
+              divRef={entrada2hRef}
+              selectedValidation={selectedValidation}
+              precoAtual={data?.price ?? undefined}
+              onPatternChange={(report: string | null) => {
+                if (!report) {
+                  setSelectedValidation(null);
+                  setPendingTrade(null);
+                  return;
+                }
 
-    // Trava para só disparar a escadinha se o preço realmente tocou
-    if (report.includes("TOCADO NO ALVO")) {
-      setPendingTrade((current) => ({
-        title: report,
-        type: "scanner",
-        signal: current?.signal,
-      }));
+                // Trava para só disparar a escadinha se o preço realmente tocou
+                if (report.includes("TOCADO NO ALVO")) {
+                  setPendingTrade((current) => ({
+                    title: report,
+                    type: "scanner",
+                    signal: current?.signal,
+                  }));
 
-      // Pega direto do localStorage para garantir que o nível ativo não se perca
-      const validationAtiva = localStorage.getItem("scanner_active_validation");
+                  // Pega direto do localStorage para garantir que o nível ativo não se perca
+                  const validationAtiva = localStorage.getItem(
+                    "scanner_active_validation",
+                  );
 
-      if (validationAtiva) {
-        const cleanValidation = validationAtiva.toUpperCase();
-        const tipoPrefix = cleanValidation.startsWith("F") ? "F" : cleanValidation.startsWith("T") ? "T" : null;
+                  if (validationAtiva) {
+                    const cleanValidation = validationAtiva.toUpperCase();
+                    const tipoPrefix = cleanValidation.startsWith("F")
+                      ? "F"
+                      : cleanValidation.startsWith("T")
+                        ? "T"
+                        : null;
 
-        if (tipoPrefix) {
-          // Ajustado estritamente para 4 níveis (1 até 4)
-          let valores = [
-            localStorage.getItem(`regioes_${tipoPrefix}1`) || "",
-            localStorage.getItem(`regioes_${tipoPrefix}2`) || "",
-            localStorage.getItem(`regioes_${tipoPrefix}3`) || "",
-            localStorage.getItem(`regioes_${tipoPrefix}4`) || "",
-          ];
+                    if (tipoPrefix) {
+                      // Ajustado estritamente para 4 níveis (1 até 4)
+                      let valores = [
+                        localStorage.getItem(`regioes_${tipoPrefix}1`) || "",
+                        localStorage.getItem(`regioes_${tipoPrefix}2`) || "",
+                        localStorage.getItem(`regioes_${tipoPrefix}3`) || "",
+                        localStorage.getItem(`regioes_${tipoPrefix}4`) || "",
+                      ];
 
-          const indexMatch = cleanValidation.match(/\d+/);
-          if (indexMatch) {
-            const targetIndex = parseInt(indexMatch[0]) - 1;
+                      const indexMatch = cleanValidation.match(/\d+/);
+                      if (indexMatch) {
+                        const targetIndex = parseInt(indexMatch[0]) - 1;
 
-            if (targetIndex >= 0 && targetIndex < valores.length) {
-              // Executa a escadinha: remove o nível atingido e empurra os de baixo para cima
-              valores.splice(targetIndex, 1);
-              valores.push(""); // Adiciona o espaço vazio no final (mantendo o limite de 4)
+                        if (targetIndex >= 0 && targetIndex < valores.length) {
+                          // Executa a escadinha: remove o nível atingido e empurra os de baixo para cima
+                          valores.splice(targetIndex, 1);
+                          valores.push(""); // Adiciona o espaço vazio no final (mantendo o limite de 4)
 
-              // Salva de volta no localStorage com as chaves corretas de 1 a 4
-              valores.forEach((val, i) => {
-                localStorage.setItem(`regioes_${tipoPrefix}${i + 1}`, val);
-              });
+                          // Salva de volta no localStorage com as chaves corretas de 1 a 4
+                          valores.forEach((val, i) => {
+                            localStorage.setItem(
+                              `regioes_${tipoPrefix}${i + 1}`,
+                              val,
+                            );
+                          });
 
-              // Limpa a validação ativa do storage após subir a escadinha
-              localStorage.removeItem("scanner_active_validation");
+                          // Limpa a validação ativa do storage após subir a escadinha
+                          localStorage.removeItem("scanner_active_validation");
 
-              // Dispara os eventos para atualizar a tela na mesma aba
-              window.dispatchEvent(new Event("storage"));
-              window.dispatchEvent(new Event("atualizar_regioes"));
-            }
-          }
-        }
-      }
+                          // Dispara os eventos para atualizar a tela na mesma aba
+                          window.dispatchEvent(new Event("storage"));
+                          window.dispatchEvent(new Event("atualizar_regioes"));
+                        }
+                      }
+                    }
+                  }
 
-      // Limpa a validação ativa da tela
-      setSelectedValidation(null);
-
-    } else {
-      setPendingTrade(null);
-    }
-  }}
-/>
+                  // Limpa a validação ativa da tela
+                  setSelectedValidation(null);
+                } else {
+                  setPendingTrade(null);
+                }
+              }}
+            />
             <TradingCard
-  divRef={entrada2hRef as any}
-  patternReport={pendingTrade?.title ?? null}
-  strategySignal={pendingTrade?.signal}
-  basePrice={
-    (pendingTrade as any)?.entry ??
-    (pendingTrade as any)?.price ??
-    undefined
-  }
-  precoAtual={data?.price ?? null}
-/>
+              divRef={entrada2hRef as any}
+              patternReport={pendingTrade?.title ?? null}
+              strategySignal={pendingTrade?.signal}
+              basePrice={
+                (pendingTrade as any)?.entry ??
+                (pendingTrade as any)?.price ??
+                undefined
+              }
+              precoAtual={data?.price ?? null}
+            />
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -1152,82 +1163,90 @@ const closeIn4h = fmtCountdown(rawMs);
                 />
               </div>
             </div>
-            <MediasAtrCard
-              
-            />
+            <MediasAtrCard />
           </div>
         </section>
         <section className="mt-6 pb-8">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-         <div className="rounded-2xl border border-[#4a4a4a] bg-black p-4 flex flex-col h-full min-h-[220px] shadow-lg font-mono">
-  <div className="flex items-center justify-between mb-3">
-    <span style={{ fontSize: "16px" }} className="font-bold tracking-wider text-cyan-300 uppercase block">
-      VALIDAÇÃO
-    </span>
-  </div>
-  <div className="flex-1 flex items-center justify-center">
-    {/* Vazio */}
-  </div>
-</div>
+            <div className="rounded-2xl border border-[#4a4a4a] bg-black p-4 flex flex-col h-full min-h-[220px] shadow-lg font-mono">
+              <div className="flex items-center justify-between mb-3">
+                <span
+                  style={{ fontSize: "16px" }}
+                  className="font-bold tracking-wider text-cyan-300 uppercase block"
+                >
+                  VALIDAÇÃO
+                </span>
+              </div>
+              <div className="flex-1 flex items-center justify-center">
+                {/* Vazio */}
+              </div>
+            </div>
 
-<div className="rounded-2xl border border-[#4a4a4a] bg-black p-5 flex flex-col h-full justify-between shadow-lg font-mono">
-  <div className="flex flex-col space-y-4">
-    <div>
-      <span style={{ fontSize: "16px" }} className="font-bold tracking-wider text-cyan-400 uppercase block">
-        REGIÕES
-      </span>
-    </div>
-  </div>
-  <div className="flex-1 flex items-center justify-center py-8">
-    {/* Vazio */}
-  </div>
-</div>
+            <div className="rounded-2xl border border-[#4a4a4a] bg-black p-5 flex flex-col h-full justify-between shadow-lg font-mono">
+              <div className="flex flex-col space-y-4">
+                <div>
+                  <span
+                    style={{ fontSize: "16px" }}
+                    className="font-bold tracking-wider text-cyan-400 uppercase block"
+                  >
+                    REGIÕES
+                  </span>
+                </div>
+              </div>
+              <div className="flex-1 flex items-center justify-center py-8">
+                {/* Vazio */}
+              </div>
+            </div>
 
- <div className="rounded-2xl border border-[#4a4a4a] bg-black p-4 flex flex-col">
-  
-  {/* Cabeçalho unificado no App.tsx: Título na esquerda e o Botão do Olhinho na direita */}
-  <div className="flex items-center justify-between mb-2">
-    <span
-      style={{ fontSize: "16px" }}
-      className="font-bold tracking-wider text-cyan-300 uppercase"
-    >
-      GESTÃO DE RISCO
-    </span>
-    
-    <button
-      onClick={() => {
-        const atual = localStorage.getItem("gestao_saldo_oculto") === "true";
-        const novo = !atual;
-        localStorage.setItem("gestao_saldo_oculto", String(novo));
-        window.dispatchEvent(new Event("storage"));
-      }}
-      type="button"
-      className="flex items-center gap-2 text-cyan-300 hover:text-white transition-colors bg-black/50 border border-[#4a4a4a] px-3 py-1.5 rounded-xl focus:outline-none shadow"
-    >
-      {/* ADICIONE ESTE BLOCO AQUI DENTRO DO BOTÃO */}
-      {localStorage.getItem("gestao_saldo_oculto") === "true" ? (
-        <EyeOff size={20} />
-      ) : (
-        <Eye size={20} />
-      )}
+            <div className="rounded-2xl border border-[#4a4a4a] bg-black p-4 flex flex-col">
+              {/* Cabeçalho unificado no App.tsx: Título na esquerda e o Botão do Olhinho na direita */}
+              <div className="flex items-center justify-between mb-2">
+                <span
+                  style={{ fontSize: "16px" }}
+                  className="font-bold tracking-wider text-cyan-300 uppercase"
+                >
+                  GESTÃO DE RISCO
+                </span>
 
-      <span style={{ fontSize: "16px" }} className="font-bold tracking-wider">
-        {localStorage.getItem("gestao_saldo_oculto") === "true" ? "MOSTRAR SALDO" : "OCULTAR SALDO"}
-      </span>
-    </button>
-  </div>
+                <button
+                  onClick={() => {
+                    const atual =
+                      localStorage.getItem("gestao_saldo_oculto") === "true";
+                    const novo = !atual;
+                    localStorage.setItem("gestao_saldo_oculto", String(novo));
+                    window.dispatchEvent(new Event("storage"));
+                  }}
+                  type="button"
+                  className="flex items-center gap-2 text-cyan-300 hover:text-white transition-colors bg-black/50 border border-[#4a4a4a] px-3 py-1.5 rounded-xl focus:outline-none shadow"
+                >
+                  {/* ADICIONE ESTE BLOCO AQUI DENTRO DO BOTÃO */}
+                  {localStorage.getItem("gestao_saldo_oculto") === "true" ? (
+                    <EyeOff size={20} />
+                  ) : (
+                    <Eye size={20} />
+                  )}
 
-  <div className="flex-1 flex flex-col justify-center">
-    <GestaoDeRisco />
-  </div>
-</div>
+                  <span
+                    style={{ fontSize: "16px" }}
+                    className="font-bold tracking-wider"
+                  >
+                    {localStorage.getItem("gestao_saldo_oculto") === "true"
+                      ? "MOSTRAR SALDO"
+                      : "OCULTAR SALDO"}
+                  </span>
+                </button>
+              </div>
+
+              <div className="flex-1 flex flex-col justify-center">
+                <GestaoDeRisco />
+              </div>
+            </div>
           </div>
         </section>
       </div>
     </div>
   );
 }
-
 
 function MarketStatusBanner({
   open,
@@ -1241,7 +1260,7 @@ function MarketStatusBanner({
   return (
     <div
       ref={bannerRef}
-      style={{ transform: 'translateY(16px)' }}
+      style={{ transform: "translateY(16px)" }}
       className={`mt-4 flex items-center justify-center gap-3 rounded-xl border px-4 py-3 ${
         open
           ? "border-emerald-600/60 bg-emerald-600/5 text-emerald-600"
@@ -1266,7 +1285,6 @@ function CloseInCard({ title, value }: { title: string; value: string }) {
     </div>
   );
 }
-
 
 function MacroVolatilityCard({
   vix,
@@ -1308,7 +1326,9 @@ function MacroVolatilityCard({
   const [liveGbpChange, setLiveGbpChange] = useState(0);
   const [liveJpyChange, setLiveJpyChange] = useState(0);
 
-  const [selectedValidation, setSelectedValidation] = useState<string | null>(null);
+  const [selectedValidation, setSelectedValidation] = useState<string | null>(
+    null,
+  );
 
   // Estados locais para os Fundos e Topos para garantir reatividade instantânea
   const [valoresF, setValoresF] = useState<string[]>([
@@ -1326,7 +1346,11 @@ function MacroVolatilityCard({
   ]);
 
   // Função central de ordenação e salvamento
-  const handleRegiaoChange = (tipoPrefix: "T" | "F", indexAlterado: number, novoTexto: string) => {
+  const handleRegiaoChange = (
+    tipoPrefix: "T" | "F",
+    indexAlterado: number,
+    novoTexto: string,
+  ) => {
     if (tipoPrefix === "F") {
       const novos = [...valoresF];
       novos[indexAlterado] = novoTexto;
@@ -1409,7 +1433,8 @@ function MacroVolatilityCard({
 
     const fetchCnbcData = async () => {
       try {
-        const symbols = "UK2Y-GB|US2Y|JP2Y-JP|UK5Y-GB|US5Y|JP5Y-JP|UK10Y-GB|US10Y|JP10Y-JP";
+        const symbols =
+          "UK2Y-GB|US2Y|JP2Y-JP|UK5Y-GB|US5Y|JP5Y-JP|UK10Y-GB|US10Y|JP10Y-JP";
         const url =
           `https://quote.cnbc.com/quote-html-webservice/restQuote/symbolType/symbol` +
           `?symbols=${encodeURIComponent(symbols)}` +
@@ -1493,7 +1518,11 @@ function MacroVolatilityCard({
 
   const normalizar = (v: number) => Math.tanh(v / 0.5);
 
-  const calcularIndiceComPesos = (ukt: number, ust: number, jgb: number): number => {
+  const calcularIndiceComPesos = (
+    ukt: number,
+    ust: number,
+    jgb: number,
+  ): number => {
     let pontosAcumulados = 0;
     const PESO_UKT = 20,
       PESO_UST = 10,
@@ -1513,7 +1542,9 @@ function MacroVolatilityCard({
 
   const valorJuros2Y = calcularIndiceComPesos(liveUkt2Y, liveUst2Y, liveJgb2Y);
   const valorJuros5Y = calcularIndiceComPesos(liveUkt5Y, liveUst5Y, liveJgb5Y);
-  const valorJuros10Y = aiProbability ?? calcularIndiceComPesos(liveUktChange, liveUstChange, liveJgbChange);
+  const valorJuros10Y =
+    aiProbability ??
+    calcularIndiceComPesos(liveUktChange, liveUstChange, liveJgbChange);
 
   const getChangeColor = (val: number) =>
     val < 0 ? "text-red-600" : "text-emerald-600";
@@ -1553,11 +1584,14 @@ function MacroVolatilityCard({
       localStorage.removeItem("scanner_is_triggered");
       localStorage.setItem("scanner_active_validation", item);
 
-      localStorage.setItem("scanner_sinal", JSON.stringify({
-        item: item,
-        tipo: tipo,
-        valor: precoBase
-      }));
+      localStorage.setItem(
+        "scanner_sinal",
+        JSON.stringify({
+          item: item,
+          tipo: tipo,
+          valor: precoBase,
+        }),
+      );
     } else {
       localStorage.removeItem("scanner_confirmed_report");
       localStorage.removeItem("scanner_is_confirmed");
@@ -1578,28 +1612,36 @@ function MacroVolatilityCard({
       <div className="flex flex-col gap-2 w-[92px] shrink-0">
         <div className="flex h-14 w-full flex-col items-center justify-center rounded-xl border border-[#4a4a4a] bg-black p-1 text-center">
           <span className="text-[11px] font-bold text-cyan-300">JUROS 2Y</span>
-          <span className={`${valueTextSize} font-semibold tabular-nums ${getChangeColor(valorJuros2Y)}`}>
+          <span
+            className={`${valueTextSize} font-semibold tabular-nums ${getChangeColor(valorJuros2Y)}`}
+          >
             {formatChange(valorJuros2Y)}
           </span>
         </div>
 
         <div className="flex h-14 w-full flex-col items-center justify-center rounded-xl border border-[#4a4a4a] bg-black p-1 text-center">
           <span className="text-[11px] font-bold text-cyan-300">JUROS 5Y</span>
-          <span className={`${valueTextSize} font-semibold tabular-nums ${getChangeColor(valorJuros5Y)}`}>
+          <span
+            className={`${valueTextSize} font-semibold tabular-nums ${getChangeColor(valorJuros5Y)}`}
+          >
             {formatChange(valorJuros5Y)}
           </span>
         </div>
 
         <div className="flex h-14 w-full flex-col items-center justify-center rounded-xl border border-[#4a4a4a] bg-black p-1 text-center">
           <span className="text-[11px] font-bold text-cyan-300">JUROS 10Y</span>
-          <span className={`${valueTextSize} font-semibold tabular-nums ${getChangeColor(valorJuros10Y)}`}>
+          <span
+            className={`${valueTextSize} font-semibold tabular-nums ${getChangeColor(valorJuros10Y)}`}
+          >
             {formatChange(valorJuros10Y)}
           </span>
         </div>
 
         <div className="flex h-14 w-full flex-col items-center justify-center rounded-xl border border-[#4a4a4a] bg-black p-1 text-center">
           <span className="text-[11px] font-bold text-cyan-300">VIX</span>
-          <span className={`${valueTextSize} font-semibold tabular-nums text-emerald-600`}>
+          <span
+            className={`${valueTextSize} font-semibold tabular-nums text-emerald-600`}
+          >
             {loading && vix == null ? "—" : vix != null ? vix.toFixed(2) : "—"}
           </span>
         </div>
@@ -1622,7 +1664,9 @@ function MacroVolatilityCard({
                 onClick={() => handleBotaoClick(item, "FUNDO")}
                 style={{ fontSize: "14px" }}
                 className={`h-10 px-5 rounded-lg font-bold flex items-center justify-center cursor-pointer transition-colors shrink-0 ${
-                  isSelected ? "bg-blue-600 text-white" : "bg-blue-600/40 text-blue-300 hover:bg-blue-600 hover:text-white"
+                  isSelected
+                    ? "bg-blue-600 text-white"
+                    : "bg-blue-600/40 text-blue-300 hover:bg-blue-600 hover:text-white"
                 }`}
               >
                 {item}
@@ -1657,7 +1701,9 @@ function MacroVolatilityCard({
                 onClick={() => handleBotaoClick(item, "TOPO")}
                 style={{ fontSize: "14px" }}
                 className={`h-10 px-5 rounded-lg font-bold flex items-center justify-center cursor-pointer transition-colors shrink-0 ${
-                  isSelected ? "bg-red-600 text-white" : "bg-red-600/40 text-red-300 hover:bg-red-600 hover:text-white"
+                  isSelected
+                    ? "bg-red-600 text-white"
+                    : "bg-red-600/40 text-red-300 hover:bg-red-600 hover:text-white"
                 }`}
               >
                 {item}
