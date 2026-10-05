@@ -1641,7 +1641,7 @@ function MacroVolatilityCard({
       </div>
 
       {/* Coluna T1 a T4 */}
-      <div className="flex flex-col gap-2 w-[308px] shrink-0">
+      <div className="flex flex-col gap-2 w-[310px] shrink-0">
         {colunaT.map((item, index) => {
           const isSelected = selectedValidation === item;
           return (
