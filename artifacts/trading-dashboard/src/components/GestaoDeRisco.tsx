@@ -98,7 +98,7 @@ export function GestaoDeRisco() {
           if (!Number.isFinite(valorBaseTarget) || valorBaseTarget <= 0) return;
 
           const variacaoPontos = valorBaseTarget * (0.20 / 100); 
-          const totalPips = (variacaoPontos * 10000) / 100; 
+          const totalPips = (variacaoPontos *10000) / 100; 
           setPips(totalPips.toFixed(1));
 
           const cotacaoJpyAtual = usdjpyPrice ?? 157.0; 
@@ -107,8 +107,8 @@ export function GestaoDeRisco() {
           let melhorSlCalculado = 0;
           let melhorTaxa = 0;
 
-          for (let nocionalTestado = 10; nocionalTestado <= 10000; nocionalTestado += 5) {
-            const taxaTestada = nocionalTestado * 0.000938; 
+          for (let nocionalTestado = 10; nocionalTestado <= 10000000; nocionalTestado += 50) {
+          const taxaTestada = nocionalTestado * 0.000938; 10000000
 
             const perdaIenes = nocionalTestado * (totalPips * 0.01);
             const slTestado = perdaIenes / cotacaoJpyAtual;
@@ -125,7 +125,15 @@ export function GestaoDeRisco() {
           }
 
           const strTaxa = melhorTaxa.toFixed(2);
-          const strMargem = melhorNocional.toFixed(2);
+          
+          // --- AQUI ESTÁ A MUDANÇA DA MARGEM ---
+          const numeroMargem = melhorNocional;
+          const strMargem = numeroMargem.toLocaleString('pt-BR', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+          });
+          // ---------------------------------------
+
           const valSlNum = melhorSlCalculado > 0 ? melhorSlCalculado : 0.66;
           const valTaxaNum = parseFloat(strTaxa);
 
