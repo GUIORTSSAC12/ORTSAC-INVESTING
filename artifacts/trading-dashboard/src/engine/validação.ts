@@ -2,32 +2,30 @@
 // LEITURA DO CARD GRÁFICO 2H (MÉDIAS MÓVEIS)
 // ==========================================
 
-export interface DadosCardGrafico2H {
-  corFundoMedia20: "AZUL" | "VERMELHO";
-}
+export function identificarDirecaoCardGrafico2H(dados: { valorMedia20: number; valorMedia99: number }) {
+  const { valorMedia20, valorMedia99 } = dados;
 
-export function identificarDirecaoCardGrafico2H(dados: DadosCardGrafico2H) {
-  // Vermelho = Vem de Baixo | Azul = Vem de Cima
-  if (dados.corFundoMedia20 === "VERMELHO") {
+  // Se a Média 20 está abaixo da Média 99 -> VEM DE BAIXO
+  if (valorMedia20 < valorMedia99) {
     return {
       direcao: "VEM_DE_BAIXO",
-      motivo: "Média 20 com fundo vermelho no Card Gráfico 2H (Médias Móveis)"
+      motivo: "Média 20 está abaixo da Média 99 (Gráfico 2H)"
     };
   }
 
-  if (dados.corFundoMedia20 === "AZUL") {
+  // Se a Média 20 está acima da Média 99 -> VEM DE CIMA
+  if (valorMedia20 > valorMedia99) {
     return {
       direcao: "VEM_DE_CIMA",
-      motivo: "Média 20 com fundo azul no Card Gráfico 2H (Médias Móveis)"
+      motivo: "Média 20 está acima da Média 99 (Gráfico 2H)"
     };
   }
 
   return {
     direcao: "indefinido",
-    motivo: "Cor da média 20 no Card Gráfico 2H não reconhecida (dados corrompidos ou ausentes)"
+    motivo: "Média 20 e Média 99 estão empates"
   };
 }
-
 // ==========================================
 // VALIDAÇÃO MESTRE + CLASSIFICAÇÃO DE ATR (2H)
 // ==========================================

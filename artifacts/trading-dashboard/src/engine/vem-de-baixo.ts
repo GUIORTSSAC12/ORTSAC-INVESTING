@@ -1,11 +1,13 @@
 // ==========================================
-// ESTRATÉGIA 1: VEM DE BAIXO - VENDA NO TOPO COM ATUALIZAÇÃO (ATR > 0.510)
+// ESTRATÉGIA 1: VEM DE BAIXO - VENDA NO TOPO COM ATUALIZAÇÃO
+// ATR > 0.510
 // ==========================================
 
 export interface EstadoEstrategia1VemDeBaixo {
   fase: "MONITORANDO_TOPO" | "AGUARDANDO_RETORNO" | "VALIDANDO_NOVO_TOPO";
   topoReferencia?: number;
   aguardandoTesteImediato?: boolean;
+  aguardandoFechamentoRetorno?: boolean;
 }
 
 export interface DadosEstrategia1VemDeBaixo {
@@ -14,6 +16,7 @@ export interface DadosEstrategia1VemDeBaixo {
   precoAtual: number;
   maximaCandleAtual: number;
   candleImediatoSeguinte?: boolean;
+  candleFechado?: boolean;
   estadoAtual: EstadoEstrategia1VemDeBaixo;
 }
 
@@ -23,100 +26,226 @@ export interface ResultadoEstrategia1VemDeBaixo {
   stopLoss: number;
   takeProfit: number;
   novoEstado: EstadoEstrategia1VemDeBaixo;
+  precoEntrada?: number;
 }
 
 /**
- * Processa exclusivamente a Estratégia 1 do "Vem de Baixo"
+ * Processa exclusivamente a Estratégia 1 do "Vem de Baixo".
+ *
+ * Regra:
+ * 1. Toque inicial na 99 vindo de baixo + ATR > 0.510:
+ *    grava a máxima do candle e arma VENDA nesse topo.
+ *
+ * 2. Candle imediatamente seguinte:
+ *    se tocar o topo, VENDA.
+ *    se fechar sem tocar, o teste imediato termina.
+ *
+ * 3. Retorno futuro:
+ *    se o preço voltar a tocar o topo antigo, NÃO grava a máxima
+ *    naquele instante. Aguarda o fechamento desse candle.
+ *
+ * 4. Após o fechamento do candle de retorno:
+ *    pega a máxima FINAL desse candle, apaga o topo antigo e
+ *    transforma a nova máxima no novo topo.
+ *
+ * 5. Candle seguinte ao novo topo:
+ *    se tocar o novo topo, VENDA.
+ *    se fechar sem tocar, CANCELAR.
  */
 export function processarEstrategia1VemDeBaixo(dados: DadosEstrategia1VemDeBaixo): ResultadoEstrategia1VemDeBaixo {
-
   let estado = { ...dados.estadoAtual };
   const atr = dados.atrAtual;
+  const candleFechado = dados.candleFechado === true;
 
-  // 1. Condição de Ativação Inicial: Toque vindo de baixo com ATR > 0.510
+  // ==========================================================
+  // 1. ATIVAÇÃO INICIAL
+  // ==========================================================
+
   if (dados.teveToqueNa99DeBaixo && atr > 0.510 && estado.fase === "MONITORANDO_TOPO") {
     const maximaGravada = dados.maximaCandleAtual;
 
     return {
-      acao: "VENDA", // Mudado para sinalizar que o topo de referência foi estabelecido e o setup está armado
-      status: `Estratégia 1 (Vem de Baixo) - Topo Marcado e Armado! Referência na máxima: ${maximaGravada}`,
+      acao: "VENDA",
+      status: `[EST. 1] Topo marcado e Venda armada na máxima: ${maximaGravada}`,
       stopLoss: 0.35,
       takeProfit: 0.70,
+      precoEntrada: maximaGravada,
       novoEstado: {
         fase: "AGUARDANDO_RETORNO",
         topoReferencia: maximaGravada,
-        aguardandoTesteImediato: true
+        aguardandoTesteImediato: true,
+        aguardandoFechamentoRetorno: false
       }
     };
   }
 
-  // 2. Se o topo já está marcado, monitora a execução (Imediata ou Futura)
+  // ==========================================================
+  // 2. TOPO JÁ ARMADO
+  // ==========================================================
+
   if (estado.fase === "AGUARDANDO_RETORNO" && estado.topoReferencia !== undefined) {
     const topoRef = estado.topoReferencia;
 
-    // A. Execução Imediata (se o candle seguinte testar/romper a máxima)
-    if (estado.aguardandoTesteImediato && dados.candleImediatoSeguinte) {
-      if (dados.maximaCandleAtual >= topoRef) {
+    // ========================================================
+    // 2A. TESTE IMEDIATO
+    // ========================================================
+
+    if (estado.aguardandoTesteImediato) {
+      if (dados.candleImediatoSeguinte && dados.maximaCandleAtual >= topoRef) {
         return {
           acao: "VENDA",
-          status: "Estratégia 1 Confirmada: Venda executada na máxima do teste imediato.",
+          status: `[EST. 1] Venda executada no teste imediato do topo: ${topoRef}`,
           stopLoss: 0.35,
           takeProfit: 0.70,
-          novoEstado: { fase: "MONITORANDO_TOPO" } // Reseta após executar
+          precoEntrada: topoRef,
+          novoEstado: {
+            fase: "MONITORANDO_TOPO",
+            topoReferencia: undefined,
+            aguardandoTesteImediato: false,
+            aguardandoFechamentoRetorno: false
+          }
         };
-      } else {
-        // Se o candle imediato não rompeu, o mercado se afasta, mas o topo continua ativo para o futuro
-        estado.aguardandoTesteImediato = false;
       }
-    }
 
-    // B. Execução Futura (Mercado retorna no topo no futuro)
-    if (dados.precoAtual >= topoRef) {
-      // Quando retorna, o topo antigo é desconsiderado e a máxima deste novo candle vira o novo topo
-      const novoTopo = dados.maximaCandleAtual;
+      if (dados.candleImediatoSeguinte && candleFechado && dados.maximaCandleAtual < topoRef) {
+        return {
+          acao: "AGUARDAR",
+          status: `[EST. 1] Teste imediato encerrado. Topo ${topoRef} permanece válido para eventual retorno futuro.`,
+          stopLoss: 0.35,
+          takeProfit: 0.70,
+          novoEstado: {
+            ...estado,
+            aguardandoTesteImediato: false,
+            aguardandoFechamentoRetorno: false
+          }
+        };
+      }
 
       return {
-        acao: "VENDA", // Sinaliza que um novo topo foi acionado e está em fase de validação
-        status: `Estratégia 1: Preço retornou ao topo antigo. Novo topo provisório gravado em: ${novoTopo}. Validando candle seguinte.`,
+        acao: "AGUARDAR",
+        status: `[EST. 1] Aguardando teste imediato do topo ${topoRef}.`,
+        stopLoss: 0.35,
+        takeProfit: 0.70,
+        novoEstado: estado
+      };
+    }
+
+    // ========================================================
+    // 2B. RETORNO FUTURO - DETECTA O TOQUE
+    // ========================================================
+
+    if (!estado.aguardandoTesteImediato && !estado.aguardandoFechamentoRetorno && dados.precoAtual >= topoRef) {
+      return {
+        acao: "AGUARDAR",
+        status: `[EST. 1] Retorno futuro detectado no topo antigo (${topoRef}). Aguardando o fechamento deste candle para definir a nova máxima.`,
         stopLoss: 0.35,
         takeProfit: 0.70,
         novoEstado: {
+          ...estado,
+          aguardandoFechamentoRetorno: true
+        }
+      };
+    }
+
+    // ========================================================
+    // 2C. CANDLE DO RETORNO AINDA ESTÁ ABERTO
+    // ========================================================
+
+    if (estado.aguardandoFechamentoRetorno && !candleFechado) {
+      return {
+        acao: "AGUARDAR",
+        status: `[EST. 1] Candle de retorno ao topo ${topoRef} ainda está aberto. Aguardando fechamento para gravar a máxima final.`,
+        stopLoss: 0.35,
+        takeProfit: 0.70,
+        novoEstado: estado
+      };
+    }
+
+    // ========================================================
+    // 2D. CANDLE DO RETORNO FECHOU
+    // ========================================================
+
+    if (estado.aguardandoFechamentoRetorno && candleFechado) {
+      const novoTopo = dados.maximaCandleAtual;
+
+      return {
+        acao: "AGUARDAR",
+        status: `[EST. 1] Candle de retorno fechado. Topo antigo ${topoRef} substituído pela nova máxima final: ${novoTopo}. Aguardando teste no próximo candle.`,
+        stopLoss: 0.35,
+        takeProfit: 0.70,
+        precoEntrada: novoTopo,
+        novoEstado: {
           fase: "VALIDANDO_NOVO_TOPO",
           topoReferencia: novoTopo,
-          aguardandoTesteImediato: true
+          aguardandoTesteImediato: true,
+          aguardandoFechamentoRetorno: false
         }
       };
     }
   }
 
-  // C. Validação do novo topo no retorno futuro (o candle seguinte deve romper o novo topo)
+  // ==========================================================
+  // 3. TESTE DO NOVO TOPO
+  // ==========================================================
+
   if (estado.fase === "VALIDANDO_NOVO_TOPO" && estado.topoReferencia !== undefined) {
     const novoTopoRef = estado.topoReferencia;
 
-    if (dados.candleImediatoSeguinte) {
-      if (dados.maximaCandleAtual >= novoTopoRef) {
-        return {
-          acao: "VENDA",
-          status: "Estratégia 1 Confirmada: Venda executada no novo topo validado.",
-          stopLoss: 0.35,
-          takeProfit: 0.70,
-          novoEstado: { fase: "MONITORANDO_TOPO" }
-        };
-      } else {
-        return {
-          acao: "CANCELAR",
-          status: "Estratégia 1 Cancelada: O candle seguinte ao novo topo não o rompeu.",
-          stopLoss: 0.35,
-          takeProfit: 0.70,
-          novoEstado: { fase: "MONITORANDO_TOPO" }
-        };
-      }
+    // ========================================================
+    // 3A. NOVO TOPO FOI TOCADO NO CANDLE SEGUINTE
+    // ========================================================
+
+    if (estado.aguardandoTesteImediato && dados.candleImediatoSeguinte && dados.maximaCandleAtual >= novoTopoRef) {
+      return {
+        acao: "VENDA",
+        status: `[EST. 1] Venda executada no NOVO topo: ${novoTopoRef}`,
+        stopLoss: 0.35,
+        takeProfit: 0.70,
+        precoEntrada: novoTopoRef,
+        novoEstado: {
+          fase: "MONITORANDO_TOPO",
+          topoReferencia: undefined,
+          aguardandoTesteImediato: false,
+          aguardandoFechamentoRetorno: false
+        }
+      };
     }
+
+    // ========================================================
+    // 3B. CANDLE SEGUINTE FECHOU SEM TOCAR O NOVO TOPO
+    // ========================================================
+
+    if (estado.aguardandoTesteImediato && dados.candleImediatoSeguinte && candleFechado && dados.maximaCandleAtual < novoTopoRef) {
+      return {
+        acao: "CANCELAR",
+        status: `[EST. 1] Novo topo ${novoTopoRef} cancelado. O candle seguinte fechou sem atingir a máxima.`,
+        stopLoss: 0.35,
+        takeProfit: 0.70,
+        novoEstado: {
+          fase: "MONITORANDO_TOPO",
+          topoReferencia: undefined,
+          aguardandoTesteImediato: false,
+          aguardandoFechamentoRetorno: false
+        }
+      };
+    }
+
+    return {
+      acao: "AGUARDAR",
+      status: `[EST. 1] Novo topo ${novoTopoRef} armado. Aguardando teste no candle seguinte.`,
+      stopLoss: 0.35,
+      takeProfit: 0.70,
+      novoEstado: estado
+    };
   }
+
+  // ==========================================================
+  // 4. ESTADO PADRÃO
+  // ==========================================================
 
   return {
     acao: "IGNORADO",
-    status: "Estratégia 1 (Vem de Baixo) aguardando gatilho.",
+    status: "Estratégia 1 (Vem de Baixo) .",
     stopLoss: 0.35,
     takeProfit: 0.70,
     novoEstado: estado

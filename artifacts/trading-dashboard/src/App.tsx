@@ -16,6 +16,10 @@ import { BotaoSomVix } from "./components/BOTAOSOM";
 import ScannerCard from "./components/ScannerCard";
 import TradingCard from "./components/TradingCard";
 import type { StrategySignal } from "./types/strategy";
+import Minigrafico from "./components/Minigrafico";
+import SaldoTaxaMargem from "./components/saldotaxamargem";
+import { GestaoDeRisco } from './components/GestaoDeRisco';
+import { MediasAtrCard } from "./components/Monitor";
 
 const AUTH_KEY = "dashboard_auth_v1";
 const AUTH_USER = "guilhermeortsac";
@@ -195,7 +199,6 @@ function ema(values: number[], period: number): number[] {
   const out: number[] = new Array(values.length).fill(NaN);
   if (values.length < period) return out;
   const k = 2 / (period + 1);
-  // Seed: SMA of first `period` values — matches TradingView / Pine Script behaviour
   let sum = 0;
   for (let i = 0; i < period; i++) sum += values[i];
   let prev = sum / period;
@@ -233,7 +236,6 @@ function rma(values: number[], period: number): number[] {
   return out;
 }
 
-// Raw EMA — "Suavização da linha" in BingX/TradingView is visual only, the legend value is pure EMA
 function computeEMA(closes: number[], period: number): number | null {
   if (closes.length < period) return null;
   const e = ema(closes, period);
@@ -255,8 +257,6 @@ function computeATR14(klines: Kline[]): number | null {
   return Number.isFinite(last) ? last : null;
 }
 
-// ADX de Wilder com DI length 14 e suavização ADX 14.
-// Usa todos os candles recebidos, incluindo a vela 2H atualmente em formação.
 function computeADX14(klines: Kline[]): number | null {
   const period = 14;
   if (klines.length < period * 2 + 1) return null;
@@ -317,7 +317,6 @@ function computeADX14(klines: Kline[]): number | null {
   return Number.isFinite(adx) ? adx : null;
 }
 
-// klines = all candles including forming; closedKlines = forming candle excluded (for ATR)
 function processTF(klines: Kline[], closedKlines: Kline[]): TFData {
   const closes = klines.map((k) => k.close);
   return {
@@ -325,7 +324,7 @@ function processTF(klines: Kline[], closedKlines: Kline[]): TFData {
       ma20: computeEMA(closes, 20) ?? NaN,
       ma99: computeEMA(closes, 99) ?? NaN,
     },
-    atr14: computeATR14(closedKlines), // ATR usa só candles fechados (sem distorção da vela atual)
+    atr14: computeATR14(closedKlines),
   };
 }
 
@@ -359,7 +358,10 @@ function mergeTFData(previous: TFData | null, next: TFData): TFData {
       : null;
 
   return {
-    mas: ma20 != null || ma99 != null ? { ma20: ma20 ?? NaN, ma99: ma99 ?? NaN } : null,
+    mas:
+      ma20 != null || ma99 != null
+        ? { ma20: ma20 ?? NaN, ma99: ma99 ?? NaN }
+        : null,
     atr14: isFiniteNumber(next.atr14)
       ? next.atr14
       : isFiniteNumber(previous?.atr14)
@@ -477,6 +479,15 @@ function Index({ onLogout }: { onLogout: () => void }) {
     title: string;
     type: string;
   } | null>(null);
+  
+  // Estado para armazenar a validação selecionada
+  const [selectedValidation, setSelectedValidation] = useState<string | null>(null);
+  
+  // ==========================================
+  // 1. ADICIONADO: Gatilho para forçar o fetch imediato
+  // ==========================================
+  const [forceFetchTrigger, setForceFetchTrigger] = useState<number>(0);
+
   const [data, setData] = useState<TickerData | null>(null);
   const [prevPrice, setPrevPrice] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -490,7 +501,9 @@ function Index({ onLogout }: { onLogout: () => void }) {
   const [utcOffset, setUtcOffset] = useState<0 | 1>(1);
   const [now, setNow] = useState<Date | null>(null);
   const [tf2h, setTf2h] = useState<TFData | null>(null);
+  const [candles2H, setCandles2H] = useState<Kline[]>([]);
   const [tf4h, setTf4h] = useState<TFData | null>(null);
+  const [candles4h, setCandles4H] = useState<Kline[]>([]);
   const [atr2hPrevious, setAtr2hPrevious] = useState<number | null>(null);
   const [paused, setPaused] = useState(false);
   const entrada2hRef = useRef<HTMLDivElement>(null);
@@ -500,7 +513,37 @@ function Index({ onLogout }: { onLogout: () => void }) {
   const macroVolatilityRef = useRef<HTMLDivElement>(null);
   const [marketBannerShift, setMarketBannerShift] = useState(0);
   const [entrada2hHeight, setEntrada2hHeight] = useState(0);
+  const [tradeMinigrafico, setTradeMinigrafico] = useState<any>(null);
+ const [ptaxVenda, setPtaxVenda] = useState("--");
 
+  useEffect(() => {
+    fetch(
+      "https://docs.google.com/spreadsheets/d/e/2PACX-1vReLlRalss08Ihc-fJmsEbABK-eF2xMOpfLkVfpsTUnCRYmU9Ctv9tbCl3YUeBAAOJARgp-3_viQ1aE/pub?gid=807141386&single=true&output=csv",
+    )
+      .then((res) => res.text())
+      .then((csvText) => {
+        const linhas = csvText.trim().split("\n");
+        if (linhas.length >= 9) {
+          // Expressão regular para respeitar campos entre aspas no CSV do Google Sheets
+          const regexCSV = /(?:^|,)("(?:[^"]|"")*"|[^,]*)/g;
+          let match;
+          const colunasLinha9 = [];
+          
+          while ((match = regexCSV.exec(linhas[8])) !== null) {
+            let valor = match[1].replace(/^"|"$/g, "").replace(/""/g, '"').trim();
+            colunasLinha9.push(valor);
+            if (match.index === regexCSV.lastIndex) regexCSV.lastIndex++;
+          }
+
+          // A coluna G corresponde ao índice 6 (A=0, B=1, C=2, D=3, E=4, F=5, G=6)
+          if (colunasLinha9.length > 6) {
+            const valorG9 = colunasLinha9[6] || "--";
+            setPtaxVenda(valorG9);
+          }
+        }
+      })
+      .catch((err) => console.error("Erro ao buscar Ptax da planilha:", err));
+  }, []);
   useEffect(() => {
     const el = entrada2hRef.current;
     if (!el) return;
@@ -511,7 +554,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
     return () => ro.disconnect();
   }, []);
 
-  useLayoutEffect(() => {
+ useLayoutEffect(() => {
     const alignMarketBanner = () => {
       const macroBottom =
         macroVolatilityRef.current?.getBoundingClientRect().bottom;
@@ -521,8 +564,10 @@ function Index({ onLogout }: { onLogout: () => void }) {
 
       const currentTransform = wrapper.style.transform;
       wrapper.style.transform = "translateY(0px)";
-      const naturalBannerTop = banner.getBoundingClientRect().top;
+      // Adicionei um "+ 20" (ou o valor que preferir) logo aqui no topo natural do banner:
+      const naturalBannerTop = banner.getBoundingClientRect().top - 24; 
       wrapper.style.transform = currentTransform;
+      
       setMarketBannerShift(Math.round(macroBottom - naturalBannerTop));
     };
 
@@ -538,12 +583,18 @@ function Index({ onLogout }: { onLogout: () => void }) {
     };
   }, []);
 
+
+
   useEffect(() => {
     setNow(new Date());
     const id = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(id);
   }, []);
-
+  
+  // ==========================================
+  // 3. ADICIONADO: Observa o cronômetro para zerar o atraso na hora
+  // ==========================================
+  
   useEffect(() => {
     let cancelled = false;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -568,19 +619,23 @@ function Index({ onLogout }: { onLogout: () => void }) {
         const ts = Number(d.closeTime);
         if (cancelled) return false;
         setData((curr) => {
-          const validAsk = isFiniteNumber(ask) && ask > 0 ? ask : curr?.ask ?? null;
-          const validBid = isFiniteNumber(bid) && bid > 0 ? bid : curr?.bid ?? null;
+          const validAsk =
+            isFiniteNumber(ask) && ask > 0 ? ask : (curr?.ask ?? null);
+          const validBid =
+            isFiniteNumber(bid) && bid > 0 ? bid : (curr?.bid ?? null);
           const spread =
             validAsk != null && validBid != null && validAsk >= validBid
               ? validAsk - validBid
-              : curr?.spread ?? null;
+              : (curr?.spread ?? null);
           const next: TickerData = {
             price,
             ask: validAsk,
             bid: validBid,
             spread,
-            changePct: isFiniteNumber(changePct) ? changePct : curr?.changePct ?? 0,
-            ts: isFiniteNumber(ts) ? ts : curr?.ts ?? Date.now(),
+            changePct: isFiniteNumber(changePct)
+              ? changePct
+              : (curr?.changePct ?? 0),
+            ts: isFiniteNumber(ts) ? ts : (curr?.ts ?? Date.now()),
           };
           if (curr && isFiniteNumber(curr.price)) setPrevPrice(curr.price);
           return next;
@@ -664,7 +719,10 @@ function Index({ onLogout }: { onLogout: () => void }) {
           }))
           .sort((a, b) => a.time - b.time);
 
-        // EMA inclui vela em formação (close = preço live); ATR usa só fechadas
+        if (interval === "4h") {
+          setCandles4H(allKs);
+        }
+
         const closedKs = allKs.slice(0, -1);
 
         return {
@@ -732,7 +790,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
       cancelled = true;
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, []);
+  }, [forceFetchTrigger]); // <--- 2. ADICIONADO AQUI: Reseta o ciclo e busca na hora quando o gatilho muda
 
   const direction: "up" | "down" | "flat" =
     data && prevPrice != null
@@ -771,15 +829,9 @@ function Index({ onLogout }: { onLogout: () => void }) {
 
   const marketOpen = !error && !paused;
 
-  // ─── REGRA GLOBAL: ALINHAMENTO DE ABERTURA DE VELAS ────────────────────────
-  // LONDRES UTC 0  → velas 2H/4H abrem em horas PARES  (00,02,04,06,08,10,...)
-  // LONDRES UTC +1 → velas 2H/4H abrem em horas ÍMPARES (01,03,05,07,09,11,...)
-  // isCandleOpenHour(londonHour, cycle) → true quando aquela hora de Londres
-  // é um ponto de abertura de vela, respeitando o utcOffset ativo.
   const isCandleOpenHour = (londonHour: number, cycle: number): boolean =>
     (((londonHour - utcOffset) % cycle) + cycle) % cycle === 0;
 
-  // Arrays com todos os horários de abertura de vela no dia (hora de Londres)
   const candleOpenHours2h = Array.from({ length: 24 }, (_, h) => h).filter(
     (h) => isCandleOpenHour(h, 2),
   );
@@ -819,8 +871,9 @@ function Index({ onLogout }: { onLogout: () => void }) {
     return `${h}:${m}:${s}`;
   };
 
-  const closeIn2h = fmtCountdown(nextCloseMs(2));
-  const closeIn4h = fmtCountdown(nextCloseMs(4));
+// Calcula direto o próximo fechamento de 4 horas, sem acréscimo de segundos
+const rawMs = (nextCloseMs(4) ?? 0);
+const closeIn4h = fmtCountdown(rawMs);
 
   return (
     <div className="min-h-screen bg-black text-foreground font-mono">
@@ -837,6 +890,14 @@ function Index({ onLogout }: { onLogout: () => void }) {
 
           <div className="flex items-center gap-3">
             <BotaoSomVix />
+            <div className="rounded-xl border border-[#4a4a4a] bg-black p-2.5 min-w-[130px] flex flex-col items-center justify-center">
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground text-center">
+                Ptax
+              </div>
+              <div className="text-2xl font-bold tabular-nums leading-none mt-1 text-center">
+                {ptaxVenda}
+              </div>
+            </div>
             <div className="rounded-xl border border-[#4a4a4a] bg-black px-4 py-2 text-center">
               <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
                 Data atual
@@ -899,7 +960,6 @@ function Index({ onLogout }: { onLogout: () => void }) {
             ref={radarCardRef}
             className="relative flex h-full min-h-[300px] flex-col overflow-hidden rounded-2xl border border-[#4a4a4a] bg-black p-6 shadow-sm"
           >
-            {/* Radar artwork occupies only the area above the fixed bottom banner. */}
             <div
               className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center"
               aria-hidden="true"
@@ -908,7 +968,6 @@ function Index({ onLogout }: { onLogout: () => void }) {
                 className="relative opacity-95"
                 style={{ width: "min(90%, 495px)", aspectRatio: "1 / 1" }}
               >
-                500
                 <img
                   src={radarBg}
                   alt=""
@@ -992,109 +1051,176 @@ function Index({ onLogout }: { onLogout: () => void }) {
               macroVolatilityRef={macroVolatilityRef}
             />
             <div className="grid grid-cols-2 gap-2">
-              <ToposFundosCard />
-              <CloseInCard title="2H FECHA EM" value={closeIn2h} />
+              <SaldoTaxaMargem/>
+              <CloseInCard title="4H FECHA EM" value={closeIn4h} />
             </div>
           </div>
         </section>
-        <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2 items-start">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <ScannerCard
-              divRef={entrada2hRef}
-              atrAtual={tf2h?.atr14 ?? undefined}
-              precoAtual={data?.price ?? undefined}
-              valorMedia99={tf2h?.mas?.ma99 ?? undefined}
-              onPatternChange={(report: string | null) =>
-                setPendingTrade((current) =>
-                  report
-                    ? {
-                        title: report,
-                        type: "scanner",
-                        signal: current?.signal,
-                      }
-                    : null,
-                )
-              }
-              onStrategySignal={(signal) =>
-                setPendingTrade(
-                  signal
-                    ? {
-                        title: signal.report,
-                        type: "scanner",
-                        signal,
-                      }
-                    : null,
-                )
-              }
-            />
+  divRef={entrada2hRef}
+  selectedValidation={selectedValidation}
+  precoAtual={data?.price ?? undefined}
+  onPatternChange={(report: string | null) => {
+    if (!report) {
+      setSelectedValidation(null);
+      setPendingTrade(null);
+      return;
+    }
 
+    // Trava para só disparar a escadinha se o preço realmente tocou
+    if (report.includes("TOCADO NO ALVO")) {
+      setPendingTrade((current) => ({
+        title: report,
+        type: "scanner",
+        signal: current?.signal,
+      }));
+
+      // Pega direto do localStorage para garantir que o nível ativo não se perca
+      const validationAtiva = localStorage.getItem("scanner_active_validation");
+
+      if (validationAtiva) {
+        const cleanValidation = validationAtiva.toUpperCase();
+        const tipoPrefix = cleanValidation.startsWith("F") ? "F" : cleanValidation.startsWith("T") ? "T" : null;
+
+        if (tipoPrefix) {
+          // Ajustado estritamente para 4 níveis (1 até 4)
+          let valores = [
+            localStorage.getItem(`regioes_${tipoPrefix}1`) || "",
+            localStorage.getItem(`regioes_${tipoPrefix}2`) || "",
+            localStorage.getItem(`regioes_${tipoPrefix}3`) || "",
+            localStorage.getItem(`regioes_${tipoPrefix}4`) || "",
+          ];
+
+          const indexMatch = cleanValidation.match(/\d+/);
+          if (indexMatch) {
+            const targetIndex = parseInt(indexMatch[0]) - 1;
+
+            if (targetIndex >= 0 && targetIndex < valores.length) {
+              // Executa a escadinha: remove o nível atingido e empurra os de baixo para cima
+              valores.splice(targetIndex, 1);
+              valores.push(""); // Adiciona o espaço vazio no final (mantendo o limite de 4)
+
+              // Salva de volta no localStorage com as chaves corretas de 1 a 4
+              valores.forEach((val, i) => {
+                localStorage.setItem(`regioes_${tipoPrefix}${i + 1}`, val);
+              });
+
+              // Limpa a validação ativa do storage após subir a escadinha
+              localStorage.removeItem("scanner_active_validation");
+
+              // Dispara os eventos para atualizar a tela na mesma aba
+              window.dispatchEvent(new Event("storage"));
+              window.dispatchEvent(new Event("atualizar_regioes"));
+            }
+          }
+        }
+      }
+
+      // Limpa a validação ativa da tela
+      setSelectedValidation(null);
+
+    } else {
+      setPendingTrade(null);
+    }
+  }}
+/>
             <TradingCard
-              divRef={entrada2hRef}
-              patternReport={pendingTrade?.title ?? null}
-              strategySignal={pendingTrade?.signal}
-              basePrice={data?.price ?? undefined}
-              precoAtual={data?.price ?? null}
-              atrAtual={tf2h?.atr14 ?? null}
-              media20={tf2h?.mas?.ma20 ?? null}
-              media99={tf2h?.mas?.ma99 ?? null}
-              institutionalCandle={tf2h?.lastClosedCandle ?? null}
-              onPendingChange={setQueuedTrade}
-            />
+  divRef={entrada2hRef as any}
+  patternReport={pendingTrade?.title ?? null}
+  strategySignal={pendingTrade?.signal}
+  basePrice={
+    (pendingTrade as any)?.entry ??
+    (pendingTrade as any)?.price ??
+    undefined
+  }
+  precoAtual={data?.price ?? null}
+/>
           </div>
 
-          <MediasAtrCard
-            tf2h={tf2h}
-            tf4h={tf4h}
-            atr2hCurrent={tf2h?.atr14 ?? null}
-            atr2hPrevious={atr2hPrevious}
-          />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="relative border border-[#4a4a4a] bg-black rounded-xl p-2 flex flex-col shadow-lg text-white font-mono w-full h-auto min-h-[360px]">
+              <h3 className="text-cyan-400 font-bold text-[16px] tracking-wider uppercase mb-2">
+                GBP/JPY 4H
+              </h3>
+              <div className="flex-1 min-h-0">
+                <Minigrafico
+                  precoAtual={data?.price ?? null}
+                  candles4h={candles4h}
+                  tradeAtivo={tradeMinigrafico}
+                />
+              </div>
+            </div>
+            <MediasAtrCard
+              
+            />
+          </div>
         </section>
-
-        {/* Filtros — visível só com scroll */}
         <section className="mt-6 pb-8">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <FiltroCard
-              title="FILTRO 2H"
-              cardId="filtro_2h"
-              rows={[
-                "2H",
-                "COMO FUGIR DO INSTITUCIONAL",
-                "VEM DE CIMA",
-                "VEM DE BAIXO",
-                "",
-                "",
-              ]}
-            />
-            <FiltroCard
-              title="FILTRO 4H"
-              cardId="filtro_4h"
-              rows={["4H", "OLHAR O GBP USD", "COMPRA", "VENDA", "", ""]}
-            />
-            <div className="rounded-2xl border border-[#4a4a4a] bg-black p-5 flex flex-col h-full min-h-[220px] shadow-lg">
-              <div className="flex items-center justify-between mb-2">
-                <span
-                  style={{ fontSize: "16px" }}
-                  className="font-bold tracking-wider text-cyan-300 uppercase block"
-                >
-                  TRADE PENDENTE
-                </span>
-                <span className="text-[9px] font-mono px-2 py-0.5 bg-black/60 border border-cyan-500/30 text-cyan-300 rounded">
-                  [Reserva Ativa]
-                </span>
-              </div>
+         <div className="rounded-2xl border border-[#4a4a4a] bg-black p-4 flex flex-col h-full min-h-[220px] shadow-lg font-mono">
+  <div className="flex items-center justify-between mb-3">
+    <span style={{ fontSize: "16px" }} className="font-bold tracking-wider text-cyan-300 uppercase block">
+      VALIDAÇÃO
+    </span>
+  </div>
+  <div className="flex-1 flex items-center justify-center">
+    {/* Vazio */}
+  </div>
+</div>
 
-              <div className="flex-1 flex flex-col items-center justify-center text-center font-mono text-xs">
-                {queuedTrade ? (
-                  <span className="text-amber-400 font-bold">
-                    [RESERVA ATIVA: {queuedTrade.title} - {queuedTrade.type}]
-                  </span>
-                ) : (
-                  <span className="text-cyan-500/80">
-                    [Aguardando estratégia em reserva...]
-                  </span>
-                )}
-              </div>
-            </div>
+<div className="rounded-2xl border border-[#4a4a4a] bg-black p-5 flex flex-col h-full justify-between shadow-lg font-mono">
+  <div className="flex flex-col space-y-4">
+    <div>
+      <span style={{ fontSize: "16px" }} className="font-bold tracking-wider text-cyan-400 uppercase block">
+        REGIÕES
+      </span>
+    </div>
+  </div>
+  <div className="flex-1 flex items-center justify-center py-8">
+    {/* Vazio */}
+  </div>
+</div>
+
+ <div className="rounded-2xl border border-[#4a4a4a] bg-black p-4 flex flex-col">
+  
+  {/* Cabeçalho unificado no App.tsx: Título na esquerda e o Botão do Olhinho na direita */}
+  <div className="flex items-center justify-between mb-2">
+    <span
+      style={{ fontSize: "16px" }}
+      className="font-bold tracking-wider text-cyan-300 uppercase"
+    >
+      GESTÃO DE RISCO
+    </span>
+    
+    <button
+      onClick={() => {
+        const atual = localStorage.getItem("gestao_saldo_oculto") === "true";
+        const novo = !atual;
+        localStorage.setItem("gestao_saldo_oculto", String(novo));
+        window.dispatchEvent(new Event("storage"));
+      }}
+      type="button"
+      className="flex items-center gap-2 text-cyan-300 hover:text-white transition-colors bg-black/50 border border-[#4a4a4a] px-3 py-1.5 rounded-xl focus:outline-none shadow"
+    >
+      {/* ADICIONE ESTE BLOCO AQUI DENTRO DO BOTÃO */}
+      {localStorage.getItem("gestao_saldo_oculto") === "true" ? (
+        <EyeOff size={20} />
+      ) : (
+        <Eye size={20} />
+      )}
+
+      <span style={{ fontSize: "16px" }} className="font-bold tracking-wider">
+        {localStorage.getItem("gestao_saldo_oculto") === "true" ? "MOSTRAR SALDO" : "OCULTAR SALDO"}
+      </span>
+    </button>
+  </div>
+
+  <div className="flex-1 flex flex-col justify-center">
+    <GestaoDeRisco />
+  </div>
+</div>
           </div>
         </section>
       </div>
@@ -1102,165 +1228,6 @@ function Index({ onLogout }: { onLogout: () => void }) {
   );
 }
 
-function EntradaCard({
-  title,
-  divRef,
-}: {
-  title: string;
-  divRef?: React.RefObject<HTMLDivElement | null>;
-}) {
-  return (
-    <div
-      ref={divRef}
-      className="relative overflow-hidden rounded-2xl border border-[#4a4a4a] bg-black shadow-sm min-h-[160px]"
-    >
-      <img
-        src={scannerbg}
-        alt=""
-        className="absolute inset-0 w-full h-full object-contain"
-        draggable={false}
-      />
-      <div className="relative z-10 p-5">
-        <div className="text-base font-semibold tracking-wide text-cyan-400">
-          {title}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function MaValue({ ma20, ma99 }: { ma20: number; ma99: number }) {
-  const valid20 = Number.isFinite(ma20);
-  const valid99 = Number.isFinite(ma99);
-  const bg =
-    !valid20 || !valid99
-      ? "bg-muted text-muted-foreground"
-      : ma20 > ma99
-        ? "bg-blue-500/90 text-white"
-        : "bg-red-500/90 text-white";
-  return (
-    <div className="space-y-1 text-sm tabular-nums">
-      <div className="flex flex-row flex-nowrap items-center justify-between gap-2 whitespace-nowrap">
-        <span className="text-yellow-400 whitespace-nowrap">MÉDIA 99:</span>
-        <span className="font-semibold text-yellow-400 whitespace-nowrap">
-          {valid99 ? ma99.toFixed(3) : "N/A"}
-        </span>
-      </div>
-      <div className="flex flex-row flex-nowrap items-center justify-between gap-2 whitespace-nowrap">
-        <span className="text-red-500 whitespace-nowrap">MÉDIA 20:</span>
-        <span
-          className={`rounded px-2 py-0.5 font-semibold whitespace-nowrap ${bg}`}
-        >
-          {valid20 ? ma20.toFixed(3) : "N/A"}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function MediasAtrCard({
-  tf2h,
-  tf4h,
-  atr2hCurrent,
-  atr2hPrevious,
-}: {
-  tf2h: TFData | null;
-  tf4h: TFData | null;
-  atr2hCurrent: number | null;
-  atr2hPrevious: number | null;
-}) {
-  const renderBody = (tf: TFData | null) => {
-    const ma20 = tf?.mas?.ma20 ?? NaN;
-    const ma99 = tf?.mas?.ma99 ?? NaN;
-    return <MaValue ma20={ma20} ma99={ma99} />;
-  };
-
-  return (
-    <div className="rounded-2xl border border-[#4a4a4a] bg-black p-5 shadow-sm">
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-2">
-        <div>
-          <div className="text-center text-base font-semibold text-cyan-300 ">
-            MÉDIAS MÓVEIS
-          </div>
-          <div className="mt-3 space-y-4">
-            <div className="rounded-xl border border-[#4a4a4a] p-3">
-              <div className="mb-4 text-base font-semibold text-cyan-300 ">
-                GRÁFICO 2H
-              </div>
-              {renderBody(tf2h)}
-            </div>
-            <div className="rounded-xl border border-[#4a4a4a] p-3">
-              <div className="mb-4 text-base font-semibold text-cyan-300 ">
-                GRÁFICO 4H
-              </div>
-              {renderBody(tf4h)}
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <div className="text-center text-base font-semibold text-cyan-300 ">
-            ATR
-          </div>
-          <div className="mt-3 space-y-4">
-            <AtrCard
-              title="ATR 2H"
-              atr={atr2hCurrent}
-              status="ATUAL"
-              statusColor="green"
-            />
-            <AtrCard
-              title="ATR 2H"
-              atr={atr2hPrevious}
-              status="ANTERIOR"
-              statusColor="red"
-            />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AtrCard({
-  title,
-  atr,
-  status,
-  statusColor,
-}: {
-  title: string;
-  atr: number | null;
-  status: "ATUAL" | "ANTERIOR";
-  statusColor: "green" | "red";
-}) {
-  return (
-    <div className="rounded-xl border border-[#4a4a4a] bg-black p-3 text-center">
-      <div className="flex items-start justify-between gap-2.5">
-        <div className="flex-1" />
-        <div
-          className={`flex items-center gap-1.5 text-[10px] font-bold ${
-            statusColor === "green" ? "text-emerald-600" : "text-red-500"
-          }`}
-        >
-          <span
-            className={`h-2.5 w-2.5 rounded-full border-2 ${
-              statusColor === "green"
-                ? "border-emerald-600 bg-emerald-600"
-                : "border-red-500 bg-red-500"
-            }`}
-          />
-          {status}
-        </div>
-      </div>
-      <div className="mt-1.5 text-base font-semibold text-cyan-300 ">
-        {title}
-      </div>
-      <div className="mt-1.75 text-3xl font-bold tabular-nums text-blue-600">
-        {atr != null ? atr.toFixed(3) : "—"}
-      </div>
-    </div>
-  );
-}
 
 function MarketStatusBanner({
   open,
@@ -1274,6 +1241,7 @@ function MarketStatusBanner({
   return (
     <div
       ref={bannerRef}
+      style={{ transform: 'translateY(16px)' }}
       className={`mt-4 flex items-center justify-center gap-3 rounded-xl border px-4 py-3 ${
         open
           ? "border-emerald-600/60 bg-emerald-600/5 text-emerald-600"
@@ -1288,8 +1256,8 @@ function MarketStatusBanner({
 
 function CloseInCard({ title, value }: { title: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-[#4a4a4a] bg-black p-5 shadow-sm text-center">
-      <div className="text-xs font-semibold uppercase tracking-wider text-blue-400">
+    <div className="rounded-2xl border border-[#4a4a4a] bg-black p-3 shadow-sm text-center">
+      <div className="text-[14px] font-semibold uppercase tracking-wider text-cyan-300">
         {title}
       </div>
       <div className="mt-2 text-2xl font-bold tabular-nums text-foreground">
@@ -1299,23 +1267,6 @@ function CloseInCard({ title, value }: { title: string; value: string }) {
   );
 }
 
-function ToposFundosCard() {
-  return (
-    <div className="rounded-2xl border border-[#4a4a4a] bg-black p-5 shadow-sm text-center">
-      <div className="text-xs font-semibold uppercase tracking-wider text-blue-400">
-        TOPOS/FUNDOS 2H
-      </div>
-      <div className="relative mt-2 grid h-8 grid-cols-2">
-        <div aria-label="Área para fundo 2H" />
-        <div aria-label="Área para topo 2H" />
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-[#4a4a4a]"
-        />
-      </div>
-    </div>
-  );
-}
 
 function MacroVolatilityCard({
   vix,
@@ -1324,130 +1275,404 @@ function MacroVolatilityCard({
   adx,
   adxLoading,
   macroVolatilityRef,
+  uktChange = 0,
+  ustChange = 0,
+  jgbChange = 0,
+  aiProbability = null,
+  valueTextSize = "text-[24px]",
 }: {
   vix: number | null;
   loading: boolean;
   error: string | null;
-  adx: number | null;
-  adxLoading: boolean;
+  adx?: number | null;
+  adxLoading?: boolean;
   macroVolatilityRef?: React.RefObject<HTMLDivElement | null>;
+  uktChange?: number;
+  ustChange?: number;
+  jgbChange?: number;
+  aiProbability?: number | null;
+  valueTextSize?: string;
 }) {
-  const diagnostic =
-    vix == null
-      ? null
-      : vix < 20
-        ? {
-            className: "border-emerald-600/70 bg-emerald-600 text-black",
-            text: "DIAGNÓSTICO OPERACIONAL: MERCADO TÉCNICO CALMO. VOLATILIDADE MACRO EM NÍVEIS NORMAIS. COMPORTAMENTO DO PREÇO PREVISÍVEL E OSCILAÇÕES DENTRO DO ESPERADO. RISCO SISTÊMICO BAIXO.",
-          }
-        : vix <= 30
-          ? {
-              className: "border-yellow-300/70 bg-yellow-300 text-black",
-              text: "DIAGNÓSTICO OPERACIONAL: ATENÇÃO.AUMENTO DE VOLATILIDADE MACRO DETECTADO. MAIOR PROPENSÃO A FALSOS ROMPIMENTOS. OPERE COM GERENCIAMENTO RIGOROSO.",
-            }
-          : {
-              className: "border-red-600/70 bg-red-600 text-black",
-              text: "DIAGNÓSTICO OPERACIONAL: ALTO RISCO. VOLATILIDADE EXTREMA NOS MERCADOS MACROS. MOVIMENTOS ATÍPICOS E RUÍDOS ELEVADOS. RECOMENDADO REDUZIR A MÃO OU AGUARDAR NORMALIZAÇÃO.",
-            };
+  const [liveUktChange, setLiveUktChange] = useState(uktChange);
+  const [liveUstChange, setLiveUstChange] = useState(ustChange);
+  const [liveJgbChange, setLiveJgbChange] = useState(jgbChange);
 
-  const barPercent =
-    vix == null ? 0 : Math.min(100, Math.max(0, (vix / 40) * 100));
-  const barClass =
-    vix == null
-      ? "bg-[#4a4a4a]"
-      : vix < 20
-        ? "bg-emerald-600"
-        : vix <= 30
-          ? "bg-yellow-300"
-          : "bg-red-500";
+  const [liveUkt2Y, setLiveUkt2Y] = useState(0);
+  const [liveUst2Y, setLiveUst2Y] = useState(0);
+  const [liveJgb2Y, setLiveJgb2Y] = useState(0);
 
-  const adxState =
-    adx == null
-      ? null
-      : adx < 20
-        ? { label: "LATERAL", fillPercent: 0 }
-        : adx <= 25
-          ? { label: "INÍCIO", fillPercent: 30 }
-          : adx <= 40
-            ? { label: "FORTE", fillPercent: 60 }
-            : { label: "MUITO FORTE", fillPercent: 100 };
+  const [liveUkt5Y, setLiveUkt5Y] = useState(0);
+  const [liveUst5Y, setLiveUst5Y] = useState(0);
+  const [liveJgb5Y, setLiveJgb5Y] = useState(0);
+
+  const [liveGbpChange, setLiveGbpChange] = useState(0);
+  const [liveJpyChange, setLiveJpyChange] = useState(0);
+
+  const [selectedValidation, setSelectedValidation] = useState<string | null>(null);
+
+  // Estados locais para os Fundos e Topos para garantir reatividade instantânea
+  const [valoresF, setValoresF] = useState<string[]>([
+    localStorage.getItem("regioes_F1") || "",
+    localStorage.getItem("regioes_F2") || "",
+    localStorage.getItem("regioes_F3") || "",
+    localStorage.getItem("regioes_F4") || "",
+  ]);
+
+  const [valoresT, setValoresT] = useState<string[]>([
+    localStorage.getItem("regioes_T1") || "",
+    localStorage.getItem("regioes_T2") || "",
+    localStorage.getItem("regioes_T3") || "",
+    localStorage.getItem("regioes_T4") || "",
+  ]);
+
+  // Função central de ordenação e salvamento
+  const handleRegiaoChange = (tipoPrefix: "T" | "F", indexAlterado: number, novoTexto: string) => {
+    if (tipoPrefix === "F") {
+      const novos = [...valoresF];
+      novos[indexAlterado] = novoTexto;
+
+      // Separa em objetos para ordenar mantendo o texto original digitado
+      const comValor = novos
+        .map((v) => ({ texto: v, num: parseFloat(v.replace(",", ".")) }))
+        .filter((item) => !isNaN(item.num) && item.num > 0);
+
+      // Fundo (F): Maior para o menor
+      comValor.sort((a, b) => b.num - a.num);
+
+      const final = [
+        comValor[0]?.texto || "",
+        comValor[1]?.texto || "",
+        comValor[2]?.texto || "",
+        comValor[3]?.texto || "",
+      ];
+
+      // Se ainda houver campos em branco ou parciais sendo digitados no campo atual, garante que o usuário consiga digitar
+      if (novoTexto !== "" && !final.includes(novoTexto)) {
+        final[indexAlterado] = novoTexto;
+      }
+
+      setValoresF(final);
+      final.forEach((val, i) => localStorage.setItem(`regioes_F${i + 1}`, val));
+    } else {
+      const novos = [...valoresT];
+      novos[indexAlterado] = novoTexto;
+
+      const comValor = novos
+        .map((v) => ({ texto: v, num: parseFloat(v.replace(",", ".")) }))
+        .filter((item) => !isNaN(item.num) && item.num > 0);
+
+      // Topo (T): Menor para o maior (ex: 209 vai para T1 e 210 vai para T2)
+      comValor.sort((a, b) => a.num - b.num);
+
+      const final = [
+        comValor[0]?.texto || "",
+        comValor[1]?.texto || "",
+        comValor[2]?.texto || "",
+        comValor[3]?.texto || "",
+      ];
+
+      setValoresT(final);
+      final.forEach((val, i) => localStorage.setItem(`regioes_T${i + 1}`, val));
+    }
+
+    window.dispatchEvent(new Event("storage"));
+    window.dispatchEvent(new Event("atualizar_regioes"));
+  };
+
+  // Sincroniza com o localStorage caso a escadinha suba externamente
+  useEffect(() => {
+    const sincronizarDoStorage = () => {
+      setValoresF([
+        localStorage.getItem("regioes_F1") || "",
+        localStorage.getItem("regioes_F2") || "",
+        localStorage.getItem("regioes_F3") || "",
+        localStorage.getItem("regioes_F4") || "",
+      ]);
+      setValoresT([
+        localStorage.getItem("regioes_T1") || "",
+        localStorage.getItem("regioes_T2") || "",
+        localStorage.getItem("regioes_T3") || "",
+        localStorage.getItem("regioes_T4") || "",
+      ]);
+    };
+
+    window.addEventListener("atualizar_regioes", sincronizarDoStorage);
+    window.addEventListener("storage", sincronizarDoStorage);
+    return () => {
+      window.removeEventListener("atualizar_regioes", sincronizarDoStorage);
+      window.removeEventListener("storage", sincronizarDoStorage);
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchCnbcData = async () => {
+      try {
+        const symbols = "UK2Y-GB|US2Y|JP2Y-JP|UK5Y-GB|US5Y|JP5Y-JP|UK10Y-GB|US10Y|JP10Y-JP";
+        const url =
+          `https://quote.cnbc.com/quote-html-webservice/restQuote/symbolType/symbol` +
+          `?symbols=${encodeURIComponent(symbols)}` +
+          `&requestMethod=itv&noform=1&partnerId=2&fund=1&exthrs=1&output=json&events=1&_ts=${Date.now()}`;
+
+        const response = await fetch(url, { cache: "no-store" });
+        if (!response.ok) return;
+
+        const json = await response.json();
+        const quotes = json?.FormattedQuoteResult?.FormattedQuote;
+        if (!Array.isArray(quotes) || cancelled) return;
+
+        quotes.forEach((quote: any) => {
+          const symbol = quote?.symbol;
+          const rawChange = String(quote?.change_pct ?? "")
+            .replace("%", "")
+            .replace(",", ".")
+            .trim();
+          const changeVal = Number(rawChange);
+          if (!Number.isFinite(changeVal)) return;
+
+          if (symbol === "UK2Y-GB") setLiveUkt2Y(changeVal);
+          if (symbol === "US2Y") setLiveUst2Y(changeVal);
+          if (symbol === "JP2Y-JP") setLiveJgb2Y(changeVal);
+
+          if (symbol === "UK5Y-GB") setLiveUkt5Y(changeVal);
+          if (symbol === "US5Y") setLiveUst5Y(changeVal);
+          if (symbol === "JP5Y-JP") setLiveJgb5Y(changeVal);
+
+          if (symbol === "UK10Y-GB") setLiveUktChange(changeVal);
+          if (symbol === "US10Y") setLiveUstChange(changeVal);
+          if (symbol === "JP10Y-JP") setLiveJgbChange(changeVal);
+        });
+      } catch (err) {
+        if (!cancelled) console.error("Erro CNBC:", err);
+      }
+    };
+
+    const fetchBingxChange = async (symbol: string): Promise<number | null> => {
+      try {
+        const response = await fetch(
+          `/api/ticker?symbol=${encodeURIComponent(symbol)}`,
+          { cache: "no-store" },
+        );
+        if (!response.ok) return null;
+
+        const json = await response.json();
+        if (json?.code && json.code !== 0) return null;
+
+        const rawChange =
+          json?.data?.priceChangePercent ?? json?.data?.priceChange ?? 0;
+        const change = Number(rawChange);
+        return Number.isFinite(change) ? change : null;
+      } catch {
+        return null;
+      }
+    };
+
+    const atualizarMacro = async () => {
+      await fetchCnbcData();
+
+      const [gbp, jpy] = await Promise.all([
+        fetchBingxChange("NCFXGBP2USD-USDT"),
+        fetchBingxChange("NCFXUSD2JPY-USDT"),
+      ]);
+
+      if (cancelled) return;
+
+      if (gbp != null) setLiveGbpChange(gbp);
+      if (jpy != null) setLiveJpyChange(jpy);
+    };
+
+    atualizarMacro();
+    const intervalId = setInterval(atualizarMacro, 15 * 1000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+    };
+  }, []);
+
+  const normalizar = (v: number) => Math.tanh(v / 0.5);
+
+  const calcularIndiceComPesos = (ukt: number, ust: number, jgb: number): number => {
+    let pontosAcumulados = 0;
+    const PESO_UKT = 20,
+      PESO_UST = 10,
+      PESO_JGB = 20,
+      PESO_GBP = 25,
+      PESO_JPY = 25;
+
+    pontosAcumulados += normalizar(ukt) * PESO_UKT;
+    pontosAcumulados += normalizar(ust) * PESO_UST;
+    pontosAcumulados -= normalizar(jgb) * PESO_JGB;
+    pontosAcumulados += normalizar(liveGbpChange) * PESO_GBP;
+    pontosAcumulados += normalizar(liveJpyChange) * PESO_JPY;
+
+    const valorLimitado = Math.min(Math.max(pontosAcumulados, -100), 100);
+    return Number((valorLimitado / 100).toFixed(2));
+  };
+
+  const valorJuros2Y = calcularIndiceComPesos(liveUkt2Y, liveUst2Y, liveJgb2Y);
+  const valorJuros5Y = calcularIndiceComPesos(liveUkt5Y, liveUst5Y, liveJgb5Y);
+  const valorJuros10Y = aiProbability ?? calcularIndiceComPesos(liveUktChange, liveUstChange, liveJgbChange);
+
+  const getChangeColor = (val: number) =>
+    val < 0 ? "text-red-600" : "text-emerald-600";
+  const formatChange = (val: number) =>
+    `${val > 0 ? "+" : ""}${val.toFixed(2)}%`;
+
+  const colunaF = ["F1", "F2", "F3", "F4"];
+  const colunaT = ["T1", "T2", "T3", "T4"];
+
+  useEffect(() => {
+    const sinalSalvo = localStorage.getItem("scanner_sinal");
+    if (sinalSalvo) {
+      try {
+        const parsed = JSON.parse(sinalSalvo);
+        if (parsed?.item) {
+          setSelectedValidation(parsed.item);
+        }
+      } catch (e) {
+        // ignora erro de parse
+      }
+    }
+  }, []);
+
+  const handleBotaoClick = (item: string, tipo: "FUNDO" | "TOPO") => {
+    const rawInputVal = localStorage.getItem(`regioes_${item}`) || "0";
+    const precoBase = Number(rawInputVal.replace(",", ".")) || 0;
+
+    const novoValor = selectedValidation === item ? null : item;
+    setSelectedValidation(novoValor);
+
+    if (novoValor) {
+      const relatorioTexto = `${tipo} - ${rawInputVal} | AGUARDANDO O PREÇO ATUAL TOCAR NO ALVO`;
+
+      localStorage.setItem("scanner_target_value", String(precoBase));
+      localStorage.setItem("scanner_confirmed_report", relatorioTexto);
+      localStorage.setItem("scanner_is_confirmed", "true");
+      localStorage.removeItem("scanner_is_triggered");
+      localStorage.setItem("scanner_active_validation", item);
+
+      localStorage.setItem("scanner_sinal", JSON.stringify({
+        item: item,
+        tipo: tipo,
+        valor: precoBase
+      }));
+    } else {
+      localStorage.removeItem("scanner_confirmed_report");
+      localStorage.removeItem("scanner_is_confirmed");
+      localStorage.removeItem("scanner_target_value");
+      localStorage.removeItem("scanner_is_triggered");
+      localStorage.removeItem("scanner_sinal");
+      localStorage.removeItem("scanner_active_validation");
+    }
+
+    window.dispatchEvent(new Event("storage"));
+    window.dispatchEvent(new CustomEvent("atualizar_scanner"));
+    window.dispatchEvent(new CustomEvent("atualizar_gestao_risco"));
+  };
 
   return (
-    <div
-      ref={macroVolatilityRef}
-      className="relative overflow-hidden rounded-2xl border border-[#4a4a4a] bg-black p-3 shadow-sm"
-    >
-      <div className="relative z-10 text-center text-base font-bold tracking-widest text-cyan-300 ">
-        VOLATILIDADE MACRO
-      </div>
+    <div ref={macroVolatilityRef} className="flex flex-row gap-2 items-start">
+      {/* Coluna principal dos Juros e VIX */}
+      <div className="flex flex-col gap-2 w-[92px] shrink-0">
+        <div className="flex h-14 w-full flex-col items-center justify-center rounded-xl border border-[#4a4a4a] bg-black p-1 text-center">
+          <span className="text-[11px] font-bold text-cyan-300">JUROS 2Y</span>
+          <span className={`${valueTextSize} font-semibold tabular-nums ${getChangeColor(valorJuros2Y)}`}>
+            {formatChange(valorJuros2Y)}
+          </span>
+        </div>
 
-      <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-        <div className="rounded-2xl border border-[#4a4a4a] bg-black p-4">
-          <div className="text-center text-base font-bold text-cyan-300 ">
-            VIX (S&amp;P 500)
-          </div>
-          <div className="mt-3 text-center text-4xl font-bold tabular-nums text-emerald-600">
+        <div className="flex h-14 w-full flex-col items-center justify-center rounded-xl border border-[#4a4a4a] bg-black p-1 text-center">
+          <span className="text-[11px] font-bold text-cyan-300">JUROS 5Y</span>
+          <span className={`${valueTextSize} font-semibold tabular-nums ${getChangeColor(valorJuros5Y)}`}>
+            {formatChange(valorJuros5Y)}
+          </span>
+        </div>
+
+        <div className="flex h-14 w-full flex-col items-center justify-center rounded-xl border border-[#4a4a4a] bg-black p-1 text-center">
+          <span className="text-[11px] font-bold text-cyan-300">JUROS 10Y</span>
+          <span className={`${valueTextSize} font-semibold tabular-nums ${getChangeColor(valorJuros10Y)}`}>
+            {formatChange(valorJuros10Y)}
+          </span>
+        </div>
+
+        <div className="flex h-14 w-full flex-col items-center justify-center rounded-xl border border-[#4a4a4a] bg-black p-1 text-center">
+          <span className="text-[11px] font-bold text-cyan-300">VIX</span>
+          <span className={`${valueTextSize} font-semibold tabular-nums text-emerald-600`}>
             {loading && vix == null ? "—" : vix != null ? vix.toFixed(2) : "—"}
-          </div>
-          <div className="mt-4">
-            <div className="h-3 overflow-hidden rounded-full bg-[#4a4a4a]">
-              <div
-                className={`h-full rounded-full transition-[width,background-color] duration-500 ${barClass}`}
-                style={{ width: `${barPercent}%` }}
-              />
-            </div>
-            <div className="mt-1 flex justify-between text-[10px] font-semibold text-muted-foreground">
-              <span>0</span>
-              <span>40</span>
-            </div>
-          </div>
-          {error && (
-            <div className="mt-2 text-center text-[10px] text-red-400">
-              VIX indisponível
-            </div>
-          )}
-        </div>
-
-        <div className="relative flex min-h-[110px] items-center justify-center overflow-hidden">
-          <img
-            src={royalLondon}
-            alt=""
-            aria-hidden="true"
-            className="pointer-events-none h-[110px] w-auto object-contain object-center"
-            style={{ opacity: 1.95 }}
-          />
-        </div>
-
-        <div className="min-h-[110px]  rounded-2xl border border-[#4a4a4a] bg-black p-4">
-          <div className="text-center text-base font-bold text-cyan-300">
-            ADX (2H)
-          </div>
-          <div className="mt-3 text-center text-4xl font-bold tabular-nums text-emerald-600">
-            {adxLoading && adx == null
-              ? "—"
-              : adx != null
-                ? adx.toFixed(2)
-                : "—"}
-          </div>
-          <div className="mt-4">
-            <div className="h-3 overflow-hidden rounded-full bg-[#4a4a4a]">
-              <div
-                className="h-full rounded-full bg-emerald-600 transition-[width] duration-500"
-                style={{ width: `${adxState?.fillPercent ?? 0}%` }}
-              />
-            </div>
-            <div className="mt-1 text-center text-[10px] font-semibold text-muted-foreground">
-              {adxState?.label ?? "—"}
-            </div>
-          </div>
+          </span>
         </div>
       </div>
 
-      <div
-        className={`relative z-10 mt-5 rounded-2xl border px-5 py-4 text-center text-xs font-bold leading-relaxed transition-colors duration-500 ${diagnostic?.className ?? "border-[#4a4a4a] bg-[#101217] text-muted-foreground"}`}
-      >
-        {diagnostic?.text ??
-          "DIAGNÓSTICO OPERACIONAL: AGUARDANDO LEITURA DO VIX."}
+      {/* Coluna F1 a F4 */}
+      <div className="flex flex-col gap-2 w-[283px] shrink-0">
+        {colunaF.map((item, index) => {
+          const isSelected = selectedValidation === item;
+          return (
+            <div
+              key={item}
+              className={`flex h-14 w-full items-center justify-between rounded-xl border px-3 transition-all shadow-md ${
+                isSelected
+                  ? "bg-blue-600/40 border-white ring-2 ring-blue-400"
+                  : "bg-blue-600/20 border-blue-600 hover:bg-blue-600/30"
+              }`}
+            >
+              <button
+                onClick={() => handleBotaoClick(item, "FUNDO")}
+                style={{ fontSize: "14px" }}
+                className={`h-10 px-5 rounded-lg font-bold flex items-center justify-center cursor-pointer transition-colors shrink-0 ${
+                  isSelected ? "bg-blue-600 text-white" : "bg-blue-600/40 text-blue-300 hover:bg-blue-600 hover:text-white"
+                }`}
+              >
+                {item}
+              </button>
+              <input
+                type="text"
+                placeholder="0.000"
+                value={valoresF[index]}
+                onChange={(e) => handleRegiaoChange("F", index, e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                className="w-44 bg-[#12141c] border border-blue-600/50 rounded px-2 py-1 text-[24px] font-mono font-bold text-blue-200 focus:outline-none focus:border-white text-right"
+              />
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Coluna T1 a T4 */}
+      <div className="flex flex-col gap-2 w-[283px] shrink-0">
+        {colunaT.map((item, index) => {
+          const isSelected = selectedValidation === item;
+          return (
+            <div
+              key={item}
+              className={`flex h-14 w-full items-center justify-between rounded-xl border px-3 transition-all shadow-md ${
+                isSelected
+                  ? "bg-red-600/40 border-white ring-2 ring-red-400"
+                  : "bg-red-600/20 border-red-600 hover:bg-red-600/30"
+              }`}
+            >
+              <button
+                onClick={() => handleBotaoClick(item, "TOPO")}
+                style={{ fontSize: "14px" }}
+                className={`h-10 px-5 rounded-lg font-bold flex items-center justify-center cursor-pointer transition-colors shrink-0 ${
+                  isSelected ? "bg-red-600 text-white" : "bg-red-600/40 text-red-300 hover:bg-red-600 hover:text-white"
+                }`}
+              >
+                {item}
+              </button>
+              <input
+                type="text"
+                placeholder="0.000"
+                value={valoresT[index]}
+                onChange={(e) => handleRegiaoChange("T", index, e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                className="w-44 bg-[#12141c] border border-red-600/50 rounded px-2 py-1 text-[24px] font-mono font-bold text-red-200 focus:outline-none focus:border-white text-right"
+              />
+            </div>
+          );
+        })}
       </div>
     </div>
   );
