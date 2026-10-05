@@ -91,24 +91,28 @@ export function GestaoDeRisco() {
 
         setSaldoAtual(saldo.toFixed(2));
 
-        const tetoRiscoMaximo = saldo / 13;
+        // Teto de risco dinâmico: 1 centavo para contas menores, ou uma margem maior proporcional para contas gigantes
+          const tetoRiscoMaximo = saldo > 10000 ? (saldo / 13) - 1.00 : (saldo / 13) - 0.02;
 
         if (targetSaved) {
           const valorBaseTarget = parseFloat(targetSaved); 
           if (!Number.isFinite(valorBaseTarget) || valorBaseTarget <= 0) return;
 
           const variacaoPontos = valorBaseTarget * (0.20 / 100); 
-          const totalPips = (variacaoPontos *10000) / 100; 
+          const totalPips = (variacaoPontos * 10000) / 100; 
           setPips(totalPips.toFixed(1));
 
           const cotacaoJpyAtual = usdjpyPrice ?? 157.0; 
 
-          let melhorNocional = 10; 
+         let melhorNocional = 1; 
           let melhorSlCalculado = 0;
           let melhorTaxa = 0;
 
-          for (let nocionalTestado = 10; nocionalTestado <= 10000000; nocionalTestado += 50) {
-          const taxaTestada = nocionalTestado * 0.000938; 10000000
+          // PASSO DINÂMICO: Até $1.000 vai de 1 em 1 (precisão total); acima de $1.000 pula de 50 em 50 (sem lag)
+          const passoLoop = saldo > 1000 ? 50 : 1;
+
+          for (let nocionalTestado = 1; nocionalTestado <= 100000000; nocionalTestado += passoLoop) {
+            const taxaTestada = nocionalTestado * 0.000938;
 
             const perdaIenes = nocionalTestado * (totalPips * 0.01);
             const slTestado = perdaIenes / cotacaoJpyAtual;
@@ -126,18 +130,16 @@ export function GestaoDeRisco() {
 
           const strTaxa = melhorTaxa.toFixed(2);
           
-          // --- AQUI ESTÁ A MUDANÇA DA MARGEM ---
           const numeroMargem = melhorNocional;
           const strMargem = numeroMargem.toLocaleString('pt-BR', {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2
           });
-          // ---------------------------------------
 
-          const valSlNum = melhorSlCalculado > 0 ? melhorSlCalculado : 0.66;
+          const valSlNum = melhorSlCalculado > 0 ? melhorSlCalculado : (tetoRiscoMaximo * 0.75);
           const valTaxaNum = parseFloat(strTaxa);
 
-          const strSlFinal = `-${valSlNum.toFixed(2)}`; // Formata o SL com o sinal de menos
+          const strSlFinal = `-${valSlNum.toFixed(2)}`; 
 
           setStopLossFinanceiro(strSlFinal); 
           setTaxaTotalCard(`-${strTaxa}`);        
@@ -151,7 +153,7 @@ export function GestaoDeRisco() {
           setGainCard(gainLiquido > 0 ? gainLiquido.toFixed(2) : "0.00");
 
           // SALVA TUDO NO LOCALSTORAGE PARA OS OUTROS COMPONENTES LEREM
-          localStorage.setItem("gestao_sl_atual", strSlFinal); // <--- ADICIONADO AQUI
+          localStorage.setItem("gestao_sl_atual", strSlFinal); 
           localStorage.setItem("gestao_taxa_atual", `-${strTaxa}`);
           localStorage.setItem("gestao_margem_atual", strMargem);
           window.dispatchEvent(new Event("storage"));
@@ -284,7 +286,7 @@ export function GestaoDeRisco() {
 
         {/* Card 9: GAIN */}
         <div className="flex flex-col items-center">
-          <span style={{ fontSize: "14px" }} className="text-cyan-300 font-bold uppercase tracking-wider mb-1 text-center">
+          <span style={{ fontSize: "14px" }} className="text-cyan-300 font-bold uppercase` text-cyan-300 font-bold uppercase tracking-wider mb-1 text-center">
             GAIN
           </span>
           <div className="w-full bg-black/80 border border-[#4a4a4a] rounded-xl p-2 flex items-center justify-center text-center shadow">

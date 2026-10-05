@@ -27,6 +27,9 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MediasAtrCa
   const [valorSaida, setValorSaida] = useState<string>("0.000");
   const [statusCor, setStatusCor] = useState<"normal" | "vermelho" | "azul">("normal");
   
+  // Estado para a Margem dinâmica puxada do localStorage
+  const [margemDinamica, setMargemDinamica] = useState<string>("0.00");
+  
   const [rompido, setRompido] = useState<boolean>(() => {
     try {
       return localStorage.getItem("monitor_rompido") === "true";
@@ -43,6 +46,34 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MediasAtrCa
       return null;
     }
   });
+
+  // Sincroniza a Margem em tempo real com o localStorage
+  useEffect(() => {
+    const atualizarMargem = () => {
+      try {
+        const margemSalva = 
+          localStorage.getItem('gestao_margem_atual') || 
+          localStorage.getItem('margem_atual') || 
+          localStorage.getItem('margem');
+
+        if (margemSalva) {
+          setMargemDinamica(margemSalva);
+        }
+      } catch (e) {
+        console.error('Erro ao ler dados da margem', e);
+      }
+    };
+
+    atualizarMargem();
+
+    window.addEventListener('storage', atualizarMargem);
+    const interval = setInterval(atualizarMargem, 200);
+
+    return () => {
+      window.removeEventListener('storage', atualizarMargem);
+      clearInterval(interval);
+    };
+  }, []);
 
   const playSound = () => {
     try {
@@ -92,7 +123,7 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MediasAtrCa
     } catch (err) {}
   };
 
-  // 1. Monitora o preço em tempo real para detectar o ROMPIMENTO (seja para cima ou para baixo)
+  // 1. Monitora o preço em tempo real para detectar o ROMPIMENTO
   useEffect(() => {
     if (!valorEntrada || valorEntrada.trim() === "" || candles4h.length === 0) return;
     if (rompido) return;
@@ -114,7 +145,7 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MediasAtrCa
     }
   }, [candles4h, valorEntrada, rompido]);
 
-  // 2. Após romper, espera o candle fechar e avalia a direção (Compra vs Venda)
+  // 2. Após romper, espera o candle fechar e avalia a direção
   useEffect(() => {
     if (!rompido || candleAlvoTimestamp === null || candles4h.length === 0 || !valorEntrada) return;
 
@@ -177,7 +208,7 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MediasAtrCa
               MONITOR DE SAÍDA
             </span>
             <div className="flex items-center space-x-1.5">
-              {/* Botão Menos (-) com padrão Vermelho idêntico aos Topos */}
+              {/* Botão Menos (-) */}
               <button
                 onClick={handleDecrementar}
                 className="text-[11px] font-mono px-2.5 py-1 rounded border border-red-600 bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white hover:border-red-500 transition-all font-bold shadow cursor-pointer"
@@ -185,7 +216,7 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MediasAtrCa
               >
                 -
               </button>
-              {/* Botão Mais (+) com padrão Azul idêntico aos Fundos */}
+              {/* Botão Mais (+) */}
               <button
                 onClick={handleIncrementar}
                 className="text-[11px] font-mono px-2.5 py-1 rounded border border-blue-600 bg-blue-600/20 text-blue-400 hover:bg-blue-600 hover:text-white hover:border-blue-500 transition-all font-bold shadow cursor-pointer"
@@ -193,7 +224,7 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MediasAtrCa
               >
                 +
               </button>
-              {/* Botão Zerar com o mesmo padrão vermelho translúcido/hover */}
+              {/* Botão Zerar */}
               <button
                 onClick={handleZerar}
                 className="text-[11px] font-mono px-2.5 py-1 rounded border border-red-600 bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white hover:border-red-500 transition-all shadow ml-1 cursor-pointer"
@@ -234,8 +265,15 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MediasAtrCa
           </div>
         </div>
 
+        {/* BLOCO INFERIOR: MARGEM COM TÍTULO NO TOPO CENTRALIZADO E VALOR EM 40PX */}
         <div className="flex-1 flex flex-col">
-          <div className="rounded-xl border border-[#4a4a4a] p-3 flex-1 bg-black flex items-center justify-center">
+          <div className="rounded-xl border border-[#4a4a4a] p-3 flex-1 bg-black flex flex-col justify-center items-center">
+            <span className="font-semibold text-cyan-300 text-base tracking-wide mb-1">
+              MARGEM
+            </span>
+            <span className="font-extrabold text-emerald-600 text-[40px] tabular-nums leading-tight" title="Margem Atual">
+              {margemDinamica}
+            </span>
           </div>
         </div>
 
