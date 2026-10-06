@@ -27,7 +27,6 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MediasAtrCa
   const [valorSaida, setValorSaida] = useState<string>("0.000");
   const [statusCor, setStatusCor] = useState<"normal" | "vermelho" | "azul">("normal");
   
-  // Estado para o Cronômetro de 4H
   const [tempoRestante4H, setTempoRestante4H] = useState<string>("00:00:00");
   
   const [rompido, setRompido] = useState<boolean>(() => {
@@ -47,16 +46,12 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MediasAtrCa
     }
   });
 
-  // Lógica do Cronômetro de Fechamento de 4H (Blocos de 4 horas padronizados)
+  // Cronômetro de 4H
   useEffect(() => {
     const calcularTempo4H = () => {
       const agora = new Date();
       const utcMs = agora.getTime();
-      
-      // Intervalo de 4 horas em milissegundos
       const quatroHorasMs = 4 * 60 * 60 * 1000;
-      
-      // Calcula o próximo fechamento de 4H em UTC (alinha com gráficos padrão de mercado)
       const proximoFechamentoMs = Math.ceil(utcMs / quatroHorasMs) * quatroHorasMs;
       const diferencaMs = proximoFechamentoMs - utcMs;
 
@@ -70,13 +65,13 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MediasAtrCa
       const minutos = Math.floor((totalSegundos % 3600) / 60);
       const segundos = totalSegundos % 60;
 
-      const formato = `${String(horas).padStart(2, '0')}:${String(minutos).padStart(2, '0')}:${String(segundos).padStart(2, '0')}`;
-      setTempoRestante4H(formato);
+      setTempoRestante4H(
+        `${String(horas).padStart(2, '0')}:${String(minutos).padStart(2, '0')}:${String(segundos).padStart(2, '0')}`
+      );
     };
 
     calcularTempo4H();
     const intervalCronometro = setInterval(calcularTempo4H, 1000);
-
     return () => clearInterval(intervalCronometro);
   }, []);
 
@@ -128,7 +123,7 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MediasAtrCa
     } catch (err) {}
   };
 
-  // 1. Monitora o preço em tempo real para detectar o ROMPIMENTO
+  // 1. Monitora o preço para detectar quando o candle toca o valor digitado
   useEffect(() => {
     if (!valorEntrada || valorEntrada.trim() === "" || candles4h.length === 0) return;
     if (rompido) return;
@@ -138,6 +133,7 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MediasAtrCa
 
     const candleAtual = candles4h[candles4h.length - 1];
     
+    // Regra original de toque no candle (High e Low cruzam a entrada)
     if (candleAtual.high >= numEntrada && candleAtual.low <= numEntrada) {
       setRompido(true);
       const candleId = candleAtual.timestamp || candleAtual.time || candles4h.length - 1;
@@ -150,11 +146,12 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MediasAtrCa
     }
   }, [candles4h, valorEntrada, rompido]);
 
-  // 2. Após romper, espera o candle fechar e avalia a direção corrigida
+  // 2. Após romper, espera fechar e faz a comparação exata do close
   useEffect(() => {
     if (!rompido || candleAlvoTimestamp === null || candles4h.length === 0 || !valorEntrada) return;
 
     const numEntrada = parseFloat(valorEntrada.replace(",", "."));
+    if (isNaN(numEntrada)) return;
 
     const candleTocadoIndex = candles4h.findIndex(c => {
       const id = c.timestamp || c.time || candles4h.indexOf(c);
@@ -185,9 +182,6 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MediasAtrCa
       if (alarmeVermelho) {
         playSound();
       }
-    } else {
-      setValorSaida("AGUARDANDO 4H");
-      setStatusCor("normal");
     }
   }, [candles4h, candleAlvoTimestamp, rompido, valorEntrada]);
 
@@ -213,7 +207,6 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MediasAtrCa
               MONITOR DE SAÍDA
             </span>
             <div className="flex items-center space-x-1.5">
-              {/* Botão Menos (-) */}
               <button
                 onClick={handleDecrementar}
                 className="text-[11px] font-mono px-2.5 py-1 rounded border border-red-600 bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white hover:border-red-500 transition-all font-bold shadow cursor-pointer"
@@ -221,7 +214,6 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MediasAtrCa
               >
                 -
               </button>
-              {/* Botão Mais (+) */}
               <button
                 onClick={handleIncrementar}
                 className="text-[11px] font-mono px-2.5 py-1 rounded border border-blue-600 bg-blue-600/20 text-blue-400 hover:bg-blue-600 hover:text-white hover:border-blue-500 transition-all font-bold shadow cursor-pointer"
@@ -229,7 +221,6 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MediasAtrCa
               >
                 +
               </button>
-              {/* Botão Zerar */}
               <button
                 onClick={handleZerar}
                 className="text-[11px] font-mono px-2.5 py-1 rounded border border-red-600 bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white hover:border-red-500 transition-all shadow ml-1 cursor-pointer"
