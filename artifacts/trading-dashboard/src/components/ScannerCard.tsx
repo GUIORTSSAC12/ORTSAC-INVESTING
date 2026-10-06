@@ -14,6 +14,20 @@ interface ScannerCardProps {
   onActionTriggered?: (actionData: { type: string; target: number; action: string }) => void;
 }
 
+const INITIAL_STOP_PCT = 0.2;
+const STOP_EXTRA_POINTS = 0.010;
+
+const calcularStopFormatado = (target: number, isFundo: boolean) => {
+  const isSell = !isFundo;
+  const stopVal = Number(
+    (
+      target * (isSell ? 1 + INITIAL_STOP_PCT / 100 : 1 - INITIAL_STOP_PCT / 100) +
+      (isSell ? STOP_EXTRA_POINTS : -STOP_EXTRA_POINTS)
+    ).toFixed(3)
+  ).toFixed(3);
+  return stopVal;
+};
+
 export default function ScannerCard({
   divRef,
   selectedValidation = null,
@@ -27,7 +41,22 @@ export default function ScannerCard({
 
   const [confirmedReport, setConfirmedReport] = useState<string | null>(() => {
     try {
-      return localStorage.getItem("scanner_confirmed_report");
+      const savedReport = localStorage.getItem("scanner_confirmed_report");
+      const savedTarget = localStorage.getItem("scanner_target_value");
+      if (savedReport && savedTarget) {
+        const targetNum = parseFloat(savedTarget);
+        if (!isNaN(targetNum)) {
+          const isFundo = savedReport.startsWith("FUND");
+          const tipoTexto = isFundo ? "FUNDO" : "TOPO";
+          const stopCalc = calcularStopFormatado(targetNum, isFundo);
+          
+          if (savedReport.includes("TOCADO NO ALVO")) {
+            return savedReport;
+          }
+          return `${tipoTexto} - ${targetNum.toFixed(3)} | STOP - ${stopCalc} | AGUARDANDO O PREÇO ATUAL TOCAR NO ALVO`;
+        }
+      }
+      return savedReport;
     } catch {
       return null;
     }
@@ -87,8 +116,6 @@ export default function ScannerCard({
     const mensagemAlvoAlcancado = `${baseText} | PREÇO ATUAL TOCADO NO ALVO | AÇÃO: ${acao}`;
     
     setConfirmedReport(mensagemAlvoAlcancado);
-    
-    // CORREÇÃO CRUCIAL: Passa o relatório de alvo atingido para o componente Pai / TradingCard
     onPatternChange?.(mensagemAlvoAlcancado);
 
     onActionTriggered?.({
@@ -97,11 +124,10 @@ export default function ScannerCard({
       action: acao,
     });
   };
-  // Sincroniza do localStorage quando o evento de atualizar for disparado
+
   useEffect(() => {
     const handleAtualizar = () => {
       try {
-        // TRAVA DE SEGURANÇA: Se já foi disparado na tela, não deixa o evento sobrescrever
         if (localStorage.getItem("scanner_is_triggered") === "true") return;
 
         const reportSalvo = localStorage.getItem("scanner_confirmed_report");
@@ -109,10 +135,23 @@ export default function ScannerCard({
         const targetSalvo = localStorage.getItem("scanner_target_value");
         const disparadoSalvo = localStorage.getItem("scanner_is_triggered") === "true";
 
-        if (reportSalvo) setConfirmedReport(reportSalvo);
         setIsConfirmed(confirmadoSalvo);
-        if (targetSalvo) setTargetValue(parseFloat(targetSalvo));
         setIsTriggered(disparadoSalvo);
+
+        if (targetSalvo) {
+          const targetNum = parseFloat(targetSalvo);
+          setTargetValue(targetNum);
+          if (reportSalvo) {
+            if (reportSalvo.includes("TOCADO NO ALVO")) {
+              setConfirmedReport(reportSalvo);
+            } else {
+              const isFundo = reportSalvo.startsWith("FUND");
+              const tipoTexto = isFundo ? "FUNDO" : "TOPO";
+              const stopCalc = calcularStopFormatado(targetNum, isFundo);
+              setConfirmedReport(`${tipoTexto} - ${targetNum.toFixed(3)} | STOP - ${stopCalc} | AGUARDANDO O PREÇO ATUAL TOCAR NO ALVO`);
+            }
+          }
+        }
       } catch (e) {}
     };
 
@@ -124,6 +163,7 @@ export default function ScannerCard({
       window.removeEventListener("storage", handleAtualizar);
     };
   }, []);
+
   useEffect(() => {
     if (!selectedValidation) return;
 
@@ -133,14 +173,12 @@ export default function ScannerCard({
 
     let valorAlvo = "";
 
-    // 1. Tenta a chave direta exata
     const directKey = `regioes_${code}`;
     const directVal = localStorage.getItem(directKey);
 
     if (directVal && directVal.trim() !== "" && directVal !== "0" && directVal !== "0.000") {
       valorAlvo = directVal.trim();
     } else {
-      // 2. Varredura por chaves alternativas comuns no localStorage
       const possibleKeys = [
         `regioes_${code.toLowerCase()}`,
         isFundo ? `regioes_fundo_${code}` : `regioes_topo_${code}`,
@@ -161,7 +199,6 @@ export default function ScannerCard({
         } catch (e) {}
       }
 
-      // 3. Se ainda não achou, tenta procurar dentro de objetos JSON salvos no localStorage
       if (!valorAlvo) {
         for (let i = 0; i < localStorage.length; i++) {
           const storageKey = localStorage.key(i);
@@ -187,15 +224,17 @@ export default function ScannerCard({
     }
 
     const numericTarget = parseFloat(valorAlvo.replace(",", "."));
-    setTargetValue(isNaN(numericTarget) ? 0 : numericTarget);
+    const finalTarget = isNaN(numericTarget) ? 0 : numericTarget;
+    setTargetValue(finalTarget);
     setIsTriggered(false);
 
     try {
-      localStorage.setItem("scanner_target_value", String(numericTarget));
+      localStorage.setItem("scanner_target_value", String(finalTarget));
       localStorage.removeItem("scanner_is_triggered");
     } catch (e) {}
 
-    const mensagemFinal = `${tipoTexto} - ${valorAlvo} | AGUARDANDO O PREÇO ATUAL TOCAR NO ALVO`;
+    const stopCalculado = calcularStopFormatado(finalTarget, isFundo);
+    const mensagemFinal = `${tipoTexto} - ${valorAlvo} | STOP - ${stopCalculado} | AGUARDANDO O PREÇO ATUAL TOCAR NO ALVO`;
 
     setIsConfirmed(true);
     setConfirmedReport(mensagemFinal);
@@ -232,8 +271,6 @@ export default function ScannerCard({
       const mensagemAlvoAlcancado = `${baseText} | PREÇO ATUAL TOCADO NO ALVO | AÇÃO: ${acao}`;
       
       setConfirmedReport(mensagemAlvoAlcancado);
-      
-      // Garante o disparo automático também no toque real por preço
       onPatternChange?.(mensagemAlvoAlcancado);
 
       onActionTriggered?.({
