@@ -26,7 +26,6 @@ export function GestaoDeRisco() {
     localStorage.setItem("gestao_saldo_interno", val);
   };
 
-  // Escuta alterações do localStorage caso outra parte do app altere o estado oculto
   useEffect(() => {
     const handleStorageChange = () => {
       const ocultoStorage = localStorage.getItem("gestao_saldo_oculto") === "true";
@@ -36,7 +35,6 @@ export function GestaoDeRisco() {
     return () => window.removeEventListener("storage", handleStorageChange);
   }, []);
 
-  // 1. Puxa os preços da API (GBP/USD e USD/JPY com o padrão NCFX)
   useEffect(() => {
     let cancelled = false;
 
@@ -73,14 +71,13 @@ export function GestaoDeRisco() {
     };
 
     fetchPrices();
-    const intervalId = setInterval(fetchPrices, 3000);
+    const intervalId = setInterval(fetchPrices, 30000);
     return () => {
       cancelled = true;
       clearInterval(intervalId);
     };
   }, []);
 
-  // 2. Engenharia Reversa baseada no Saldo interno e Strategy Target
   useEffect(() => {
     const calcularGestao = () => {
       try {
@@ -91,7 +88,6 @@ export function GestaoDeRisco() {
 
         setSaldoAtual(saldo.toFixed(2));
 
-        // Teto de risco dinâmico: 1 centavo para contas menores, ou uma margem maior proporcional para contas gigantes
         const tetoRiscoMaximo = saldo > 10000 ? (saldo / 13) - 1.00 : (saldo / 13) - 0.02;
 
         if (targetSaved) {
@@ -99,8 +95,10 @@ export function GestaoDeRisco() {
           if (!Number.isFinite(valorBaseTarget) || valorBaseTarget <= 0) return;
 
           const variacaoPontos = valorBaseTarget * (0.20 / 100); 
-          const totalPips = (variacaoPontos * 10000) / 100; 
-          setPips(totalPips.toFixed(1));
+          
+          // Trunca a fração e transforma em número inteiro seco de pips via Math.floor
+          const totalPips = Math.floor((variacaoPontos * 10000) / 100); 
+          setPips(totalPips.toString());
 
           const cotacaoJpyAtual = usdjpyPrice ?? 157.0; 
 
@@ -108,7 +106,6 @@ export function GestaoDeRisco() {
           let melhorSlCalculado = 0;
           let melhorTaxa = 0;
 
-          // PASSO DINÂMICO: Até $1.000 vai de 1 em 1 (precisão total); acima de $1.000 pula de 50 em 50 (sem lag)
           const passoLoop = saldo > 1000 ? 50 : 1;
 
           for (let nocionalTestado = 1; nocionalTestado <= 100000000; nocionalTestado += passoLoop) {
@@ -128,7 +125,6 @@ export function GestaoDeRisco() {
             }
           }
 
-          // Função auxiliar para padronizar todos os números com ponto de milhar e vírgula decimal (PT-BR)
           const formatarBr = (valor: number) => {
             return valor.toLocaleString('pt-BR', {
               minimumFractionDigits: 2,
@@ -144,7 +140,7 @@ export function GestaoDeRisco() {
           const strMargem = formatarBr(melhorNocional);
 
           setStopLossFinanceiro(strSlFinal); 
-          setTaxaTotalCard(strTaxaFinal);        
+          setTaxaTotalCard(strTaxaFinal);         
           setMargemCalculada(strMargem); 
 
           const somaStopTotal = valSlNum + valTaxaNum;
@@ -156,7 +152,6 @@ export function GestaoDeRisco() {
           const gainFinalFormatado = gainLiquido > 0 ? formatarBr(gainLiquido) : "0,00";
           setGainCard(gainFinalFormatado);
 
-          // SALVA TUDO NO LOCALSTORAGE PARA OS OUTROS COMPONENTES LEREM COM OS PONTOS CERTINHOS
           localStorage.setItem("gestao_sl_atual", strSlFinal); 
           localStorage.setItem("gestao_taxa_atual", strTaxaFinal);
           localStorage.setItem("gestao_margem_atual", strMargem);
@@ -170,14 +165,12 @@ export function GestaoDeRisco() {
     };
 
     calcularGestao();
-    const intervalCalc = setInterval(calcularGestao, 300);
     window.addEventListener("storage", calcularGestao);
 
     return () => {
-      clearInterval(intervalCalc);
       window.removeEventListener("storage", calcularGestao);
     };
-  }, [usdjpyPrice, saldoManual]);
+  }, [saldoManual]);
 
   return (
     <div className="w-full h-full flex flex-col justify-between font-mono text-xs p-1">
