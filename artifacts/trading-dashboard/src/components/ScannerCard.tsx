@@ -113,7 +113,7 @@ export default function ScannerCard({
     } catch (e) {}
 
     const baseText = confirmedReport?.split("|")[0] || (isFundo ? "FUNDO" : "TOPO");
-    const mensagemAlvoAlcancado = `${baseText} | PREÇO ATUAL TOCADO NO ALVO | AÇÃO: ${acao}`;
+    const mensagemAlvoAlcancado = `${baseText.trim()} | PREÇO ATUAL TOCADO NO ALVO | AÇÃO: ${acao}`;
     
     setConfirmedReport(mensagemAlvoAlcancado);
     onPatternChange?.(mensagemAlvoAlcancado);
@@ -268,7 +268,7 @@ export default function ScannerCard({
       } catch (e) {}
 
       const baseText = confirmedReport?.split("|")[0] || (isFundo ? "FUNDO" : "TOPO");
-      const mensagemAlvoAlcancado = `${baseText} | PREÇO ATUAL TOCADO NO ALVO | AÇÃO: ${acao}`;
+      const mensagemAlvoAlcancado = `${baseText.trim()} | PREÇO ATUAL TOCADO NO ALVO | AÇÃO: ${acao}`;
       
       setConfirmedReport(mensagemAlvoAlcancado);
       onPatternChange?.(mensagemAlvoAlcancado);
@@ -280,6 +280,37 @@ export default function ScannerCard({
       });
     }
   }, [precoAtual, isConfirmed, isTriggered, targetValue, confirmedReport, onPatternChange, onActionTriggered]);
+
+  const renderFormattedReport = () => {
+    if (!confirmedReport) return null;
+    const parts = confirmedReport.split("|").map((p) => p.trim());
+
+    return (
+      <div className="flex flex-col space-y-1.5">
+        {parts.map((part, index) => {
+          // Verifica se a linha tem o hífen separando texto e número (ex: TOPO - 209.984)
+          const hasHyphen = part.includes(" - ");
+          
+          if (hasHyphen) {
+            const [label, value] = part.split(" - ");
+            return (
+              <div key={index} className="font-mono font-bold text-emerald-300 tracking-wider drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] leading-tight uppercase">
+                <span style={{ fontSize: "20px" }}>{label} - </span>
+                <span style={{ fontSize: "24px" }}>{value}</span>
+              </div>
+            );
+          }
+
+          // Para as linhas de aviso que não têm número separado por hífen (ex: AGUARDANDO...)
+          return (
+            <div key={index} className="font-mono font-bold text-emerald-300 tracking-wider drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] leading-tight uppercase" style={{ fontSize: "20px" }}>
+              {part}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
 
   return (
     <div
@@ -331,9 +362,7 @@ export default function ScannerCard({
 
         {isConfirmed && (
           <div className="py-1">
-            <p style={{ fontSize: "18px" }} className="font-mono font-bold text-emerald-300 tracking-wider drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] leading-tight uppercase">
-              {confirmedReport}
-            </p>
+            {renderFormattedReport()}
           </div>
         )}
 
