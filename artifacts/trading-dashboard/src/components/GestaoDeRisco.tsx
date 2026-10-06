@@ -92,7 +92,7 @@ export function GestaoDeRisco() {
         setSaldoAtual(saldo.toFixed(2));
 
         // Teto de risco dinâmico: 1 centavo para contas menores, ou uma margem maior proporcional para contas gigantes
-          const tetoRiscoMaximo = saldo > 10000 ? (saldo / 13) - 1.00 : (saldo / 13) - 0.02;
+        const tetoRiscoMaximo = saldo > 10000 ? (saldo / 13) - 1.00 : (saldo / 13) - 0.02;
 
         if (targetSaved) {
           const valorBaseTarget = parseFloat(targetSaved); 
@@ -104,7 +104,7 @@ export function GestaoDeRisco() {
 
           const cotacaoJpyAtual = usdjpyPrice ?? 157.0; 
 
-         let melhorNocional = 1; 
+          let melhorNocional = 1; 
           let melhorSlCalculado = 0;
           let melhorTaxa = 0;
 
@@ -128,34 +128,40 @@ export function GestaoDeRisco() {
             }
           }
 
-          const strTaxa = melhorTaxa.toFixed(2);
-          
-          const numeroMargem = melhorNocional;
-          const strMargem = numeroMargem.toLocaleString('pt-BR', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-          });
+          // Função auxiliar para padronizar todos os números com ponto de milhar e vírgula decimal (PT-BR)
+          const formatarBr = (valor: number) => {
+            return valor.toLocaleString('pt-BR', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2
+            });
+          };
 
           const valSlNum = melhorSlCalculado > 0 ? melhorSlCalculado : (tetoRiscoMaximo * 0.75);
-          const valTaxaNum = parseFloat(strTaxa);
+          const valTaxaNum = melhorTaxa;
 
-          const strSlFinal = `-${valSlNum.toFixed(2)}`; 
+          const strSlFinal = `-${formatarBr(valSlNum)}`; 
+          const strTaxaFinal = `-${formatarBr(valTaxaNum)}`;
+          const strMargem = formatarBr(melhorNocional);
 
           setStopLossFinanceiro(strSlFinal); 
-          setTaxaTotalCard(`-${strTaxa}`);        
+          setTaxaTotalCard(strTaxaFinal);        
           setMargemCalculada(strMargem); 
 
           const somaStopTotal = valSlNum + valTaxaNum;
-          setStopTotalCard(`-${somaStopTotal.toFixed(2)}`);
+          const strStopTotal = `-${formatarBr(somaStopTotal)}`;
+          setStopTotalCard(strStopTotal);
 
           const gainBruto = Number((valSlNum * 3).toFixed(2));
           const gainLiquido = gainBruto - valTaxaNum;
-          setGainCard(gainLiquido > 0 ? gainLiquido.toFixed(2) : "0.00");
+          const gainFinalFormatado = gainLiquido > 0 ? formatarBr(gainLiquido) : "0,00";
+          setGainCard(gainFinalFormatado);
 
-          // SALVA TUDO NO LOCALSTORAGE PARA OS OUTROS COMPONENTES LEREM
+          // SALVA TUDO NO LOCALSTORAGE PARA OS OUTROS COMPONENTES LEREM COM OS PONTOS CERTINHOS
           localStorage.setItem("gestao_sl_atual", strSlFinal); 
-          localStorage.setItem("gestao_taxa_atual", `-${strTaxa}`);
+          localStorage.setItem("gestao_taxa_atual", strTaxaFinal);
           localStorage.setItem("gestao_margem_atual", strMargem);
+          localStorage.setItem("gestao_stop_atual", strStopTotal);
+          localStorage.setItem("gestao_gain_atual", gainFinalFormatado);
           window.dispatchEvent(new Event("storage"));
         }
       } catch (e) {
@@ -286,7 +292,7 @@ export function GestaoDeRisco() {
 
         {/* Card 9: GAIN */}
         <div className="flex flex-col items-center">
-          <span style={{ fontSize: "14px" }} className="text-cyan-300 font-bold uppercase` text-cyan-300 font-bold uppercase tracking-wider mb-1 text-center">
+          <span style={{ fontSize: "14px" }} className="text-cyan-300 font-bold uppercase tracking-wider mb-1 text-center">
             GAIN
           </span>
           <div className="w-full bg-black/80 border border-[#4a4a4a] rounded-xl p-2 flex items-center justify-center text-center shadow">

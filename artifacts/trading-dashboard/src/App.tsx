@@ -1044,20 +1044,30 @@ function Index({ onLogout }: { onLogout: () => void }) {
             </div>
           </div>
 
-          <div className="flex flex-col gap-2">
-            <MacroVolatilityCard
-              vix={vix}
-              loading={vixLoading}
-              error={vixError}
-              adx={adx2h}
-              adxLoading={adxLoading}
-              macroVolatilityRef={macroVolatilityRef}
-            />
-            <div className="grid grid-cols-2 gap-2">
-              <SaldoTaxaMargem />
-              <CloseInCard title="4H FECHA EM" value={closeIn4h} />
-            </div>
-          </div>
+         <div className="flex flex-col gap-2">
+  <MacroVolatilityCard
+    vix={vix}
+    loading={vixLoading}
+    error={vixError}
+    adx={adx2h}
+    adxLoading={adxLoading}
+    macroVolatilityRef={macroVolatilityRef}
+  />
+  
+  <div className="flex flex-col gap-2 w-full">
+    {/* O card principal expandido de ponta a ponta com SL, Taxa, Stop e Gain */}
+    <div className="w-full">
+      <SaldoTaxaMargem />
+    </div>
+
+    {/* SEÇÃO GUARDADA PARA O CRONÔMETRO (Descomente e use quando for colocar de volta) */}
+    {/* 
+    <div className="grid grid-cols-2 gap-2">
+      <CloseInCard title="4H FECHA EM" value={closeIn4h} />
+    </div> 
+    */}
+  </div>
+</div>
         </section>
         <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2 items-start">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

@@ -27,8 +27,8 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MediasAtrCa
   const [valorSaida, setValorSaida] = useState<string>("0.000");
   const [statusCor, setStatusCor] = useState<"normal" | "vermelho" | "azul">("normal");
   
-  // Estado para a Margem dinâmica puxada do localStorage
-  const [margemDinamica, setMargemDinamica] = useState<string>("0.00");
+  // Estado para o Cronômetro de 4H
+  const [tempoRestante4H, setTempoRestante4H] = useState<string>("00:00:00");
   
   const [rompido, setRompido] = useState<boolean>(() => {
     try {
@@ -47,32 +47,37 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MediasAtrCa
     }
   });
 
-  // Sincroniza a Margem em tempo real com o localStorage
+  // Lógica do Cronômetro de Fechamento de 4H (Blocos de 4 horas padronizados)
   useEffect(() => {
-    const atualizarMargem = () => {
-      try {
-        const margemSalva = 
-          localStorage.getItem('gestao_margem_atual') || 
-          localStorage.getItem('margem_atual') || 
-          localStorage.getItem('margem');
+    const calcularTempo4H = () => {
+      const agora = new Date();
+      const utcMs = agora.getTime();
+      
+      // Intervalo de 4 horas em milissegundos
+      const quatroHorasMs = 4 * 60 * 60 * 1000;
+      
+      // Calcula o próximo fechamento de 4H em UTC (alinha com gráficos padrão de mercado)
+      const proximoFechamentoMs = Math.ceil(utcMs / quatroHorasMs) * quatroHorasMs;
+      const diferencaMs = proximoFechamentoMs - utcMs;
 
-        if (margemSalva) {
-          setMargemDinamica(margemSalva);
-        }
-      } catch (e) {
-        console.error('Erro ao ler dados da margem', e);
+      if (diferencaMs <= 0) {
+        setTempoRestante4H("00:00:00");
+        return;
       }
+
+      const totalSegundos = Math.floor(diferencaMs / 1000);
+      const horas = Math.floor(totalSegundos / 3600);
+      const minutos = Math.floor((totalSegundos % 3600) / 60);
+      const segundos = totalSegundos % 60;
+
+      const formato = `${String(horas).padStart(2, '0')}:${String(minutos).padStart(2, '0')}:${String(segundos).padStart(2, '0')}`;
+      setTempoRestante4H(formato);
     };
 
-    atualizarMargem();
+    calcularTempo4H();
+    const intervalCronometro = setInterval(calcularTempo4H, 1000);
 
-    window.addEventListener('storage', atualizarMargem);
-    const interval = setInterval(atualizarMargem, 200);
-
-    return () => {
-      window.removeEventListener('storage', atualizarMargem);
-      clearInterval(interval);
-    };
+    return () => clearInterval(intervalCronometro);
   }, []);
 
   const playSound = () => {
@@ -165,20 +170,16 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MediasAtrCa
       const precoFechamento = candleTocado.close;
       const precoAbertura = candleTocado.open;
 
-      // Identifica se é Operação de Venda (Topo) ou Compra (Fundo) baseado na Abertura
       const ehOperacaoDeVenda = numEntrada < precoAbertura;
       let alarmeVermelho = false;
 
       if (ehOperacaoDeVenda) {
-        // TOPO (Venda): Se fechou ACIMA da entrada, deu ruim (rompeu contra a venda) -> Vermelho + Som
         alarmeVermelho = precoFechamento > numEntrada;
       } else {
-        // FUNDO (Compra): Se fechou ABAIXO da entrada, deu ruim (rompeu contra a compra) -> Vermelho + Som
         alarmeVermelho = precoFechamento < numEntrada;
       }
 
       setValorSaida(precoFechamento.toFixed(3));
-      // Se alarmeVermelho for true, fica vermelho. Se for false (a favor), fica azul.
       setStatusCor(alarmeVermelho ? "vermelho" : "azul");
 
       if (alarmeVermelho) {
@@ -269,14 +270,14 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MediasAtrCa
           </div>
         </div>
 
-        {/* BLOCO INFERIOR: MARGEM */}
+        {/* BLOCO INFERIOR: CRONÔMETRO 4H */}
         <div className="flex-1 flex flex-col">
           <div className="rounded-xl border border-[#4a4a4a] p-3 flex-1 bg-black flex flex-col justify-center items-center">
-            <span className="font-semibold text-cyan-300 text-base tracking-wide mb-1">
-              MARGEM
+            <span className="font-semibold text-cyan-300 text-[16px] tracking-wide mb-1">
+              4H FECHA EM
             </span>
-            <span className="font-extrabold text-emerald-600 text-[40px] tabular-nums leading-tight" title="Margem Atual">
-              {margemDinamica}
+            <span className="font-extrabold text-white text-[40px] tabular-nums leading-tight tracking-wider" title="Tempo Restante para Fechamento 4H">
+              {tempoRestante4H}
             </span>
           </div>
         </div>
