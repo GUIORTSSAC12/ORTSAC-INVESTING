@@ -506,6 +506,19 @@ function Index({ onLogout }: { onLogout: () => void }) {
   const [candles2H, setCandles2H] = useState<Kline[]>([]);
   const [tf4h, setTf4h] = useState<TFData | null>(null);
   const [candles4h, setCandles4H] = useState<Kline[]>([]);
+  
+  // ==========================================
+  // ADICIONADO AQUI: Salva o fechamento do 4H no localStorage
+  // ==========================================
+  useEffect(() => {
+    const fechamentoAnterior = candles4h?.at(-2)?.close;
+    if (fechamentoAnterior !== undefined && fechamentoAnterior !== null) {
+      try {
+        localStorage.setItem("ultimo_4h_fechamento", String(fechamentoAnterior));
+      } catch (err) {}
+    }
+  }, [candles4h]);
+
   const [atr2hPrevious, setAtr2hPrevious] = useState<number | null>(null);
   const [paused, setPaused] = useState(false);
   const entrada2hRef = useRef<HTMLDivElement>(null);
@@ -1192,21 +1205,74 @@ function Index({ onLogout }: { onLogout: () => void }) {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-[#4a4a4a] bg-black p-5 flex flex-col h-full justify-between shadow-lg font-mono">
-              <div className="flex flex-col space-y-4">
-                <div>
-                  <span
-                    style={{ fontSize: "16px" }}
-                    className="font-bold tracking-wider text-cyan-400 uppercase block"
-                  >
-                    REGIÕES
-                  </span>
-                </div>
-              </div>
-              <div className="flex-1 flex items-center justify-center py-8">
-                {/* Vazio */}
-              </div>
-            </div>
+   <div className="rounded-2xl border border-[#4a4a4a] bg-black p-5 flex flex-col h-full justify-between shadow-lg font-mono">
+  <div className="flex flex-col space-y-4">
+    <div>
+      <span
+        style={{ fontSize: "16px" }}
+        className="font-bold tracking-wider text-cyan-400 uppercase block"
+      >
+        STATUS
+      </span>
+    </div>
+  </div>
+  
+  {/* Conteúdo dividido em duas colunas */}
+  <div className="flex-1 grid grid-cols-2 relative py-4 gap-4">
+    {/* Linha vertical divisória no meio */}
+    <div className="absolute top-2 bottom-2 left-1/2 -translate-x-1/2 w-[1px] bg-cyan-400/40" />
+
+    {/* Lado Esquerdo: Atual 4H */}
+    <div className="flex flex-col pr-2">
+      <span className="text-[16px] font-bold text-cyan-400 uppercase tracking-wider mb-3 text-center">
+        Atual 4H
+      </span>
+      <div className="flex-1 flex flex-col justify-around space-y-2 text-[16px] text-gray-300">
+        <div className="flex justify-between items-center">
+          <span style={{ fontSize: "16px" }}>Abertura:</span>
+          <span className="font-bold text-gray-100 text-[20px]">{candles4h.at(-1)?.open ?? 0}</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span style={{ fontSize: "16px" }}>Máxima:</span>
+          <span className="font-bold text-green-400 text-[20px]">{candles4h.at(-1)?.high ?? 0}</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span style={{ fontSize: "16px" }}>Mínima:</span>
+          <span className="font-bold text-red-400 text-[20px]">{candles4h.at(-1)?.low ?? 0}</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span style={{ fontSize: "16px" }}>Fechamento:</span>
+          <span className="font-bold text-gray-100 text-[20px]">{candles4h.at(-1)?.close ?? 0}</span>
+        </div>
+      </div>
+    </div>
+
+    {/* Lado Direito: Último 4H */}
+    <div className="flex flex-col pl-2">
+      <span className="text-[16px] font-bold text-cyan-400 uppercase tracking-wider mb-3 text-center">
+        Último 4H
+      </span>
+      <div className="flex-1 flex flex-col justify-around space-y-2 text-[16px] text-gray-300">
+        <div className="flex justify-between items-center">
+          <span style={{ fontSize: "16px" }}>Abertura:</span>
+          <span className="font-bold text-gray-100 text-[20px]">{candles4h.at(-2)?.open ?? 0}</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span style={{ fontSize: "16px" }}>Máxima:</span>
+          <span className="font-bold text-green-400 text-[20px]">{candles4h.at(-2)?.high ?? 0}</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span style={{ fontSize: "16px" }}>Mínima:</span>
+          <span className="font-bold text-red-400 text-[20px]">{candles4h.at(-2)?.low ?? 0}</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span style={{ fontSize: "16px" }}>Fechamento:</span>
+          <span className="font-bold text-gray-100 text-[20px]">{candles4h.at(-2)?.close ?? 0}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
             <div className="rounded-2xl border border-[#4a4a4a] bg-black p-4 flex flex-col">
               {/* Cabeçalho unificado no App.tsx: Título na esquerda e o Botão do Olhinho na direita */}

@@ -10,12 +10,12 @@ interface Candle4H {
   close: number;
 }
 
-interface MediasAtrCardProps {
+interface MonitorProps {
   precoAtual?: number | null;
   candles4h?: Candle4H[];
 }
 
-export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MediasAtrCardProps) {
+export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MonitorProps) {
   const [valorEntrada, setValorEntrada] = useState(() => {
     try {
       return localStorage.getItem("monitor_entrada_manual") || "";
@@ -24,29 +24,50 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MediasAtrCa
     }
   });
 
-  const [valorSaida, setValorSaida] = useState<string>("0.000");
-  const [statusCor, setStatusCor] = useState<"normal" | "vermelho" | "azul">("normal");
-  
-  const [tempoRestante4H, setTempoRestante4H] = useState<string>("00:00:00");
-  
-  const [rompido, setRompido] = useState<boolean>(() => {
+  const [valorSaida, setValorSaida] = useState<string>(() => {
     try {
-      return localStorage.getItem("monitor_rompido") === "true";
+      return localStorage.getItem("monitor_saida_manual") || "0.000";
     } catch {
-      return false;
+      return "0.000";
     }
   });
 
-  const [candleAlvoTimestamp, setCandleAlvoTimestamp] = useState<number | null>(() => {
+  const [statusCor, setStatusCor] = useState<"normal" | "vermelho" | "azul">(() => {
     try {
-      const saved = localStorage.getItem("monitor_candle_alvo_ts");
-      return saved !== null ? parseInt(saved, 10) : null;
+      return (localStorage.getItem("monitor_status_cor") as any) || "normal";
+    } catch {
+      return "normal";
+    }
+  });
+
+  const [tempoRestante4H, setTempoRestante4H] = useState<string>("00:00:00");
+
+  const [modoArmado, setModoArmado] = useState<"TOPO" | "FUNDO" | null>(() => {
+    try {
+      return (localStorage.getItem("monitor_modo_armado") as any) || null;
     } catch {
       return null;
     }
   });
 
-  // Cronômetro de 4H
+  const [valorReferenciaFechamento, setValorReferenciaFechamento] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem("monitor_ref_fechamento") || null;
+    } catch {
+      return null;
+    }
+  });
+
+  const tocarAlerta = () => {
+    try {
+      if (localStorage.getItem("SOUND_KEY") === "0") return;
+
+      const audio = new Audio(msnSound);
+      audio.volume = 1.0;
+      audio.play().catch(() => {});
+    } catch (e) {}
+  };
+
   useEffect(() => {
     const calcularTempo4H = () => {
       const agora = new Date();
@@ -75,13 +96,56 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MediasAtrCa
     return () => clearInterval(intervalCronometro);
   }, []);
 
-  const playSound = () => {
+  const processarVerificacaoFechamento = (fechamentoAtualStr: string) => {
+    if (!fechamentoAtualStr) return;
+
+    const valorFinalFechamento = fechamentoAtualStr;
+
+    setValorSaida(valorFinalFechamento);
+    localStorage.setItem("monitor_saida_manual", valorFinalFechamento);
+
+    if (modoArmado) {
+      const entradaNum = parseFloat(valorEntrada.replace(",", ".")) || 0;
+      const saidaNum = parseFloat(valorFinalFechamento.replace(",", ".")) || 0;
+
+      if (modoArmado === "TOPO") {
+        if (saidaNum > entradaNum) {
+          setStatusCor("vermelho");
+          localStorage.setItem("monitor_status_cor", "vermelho");
+          tocarAlerta();
+        } else {
+          setStatusCor("azul");
+          localStorage.setItem("monitor_status_cor", "azul");
+        }
+      } else if (modoArmado === "FUNDO") {
+        if (saidaNum < entradaNum) {
+          setStatusCor("vermelho");
+          localStorage.setItem("monitor_status_cor", "vermelho");
+          tocarAlerta();
+        } else {
+          setStatusCor("azul");
+          localStorage.setItem("monitor_status_cor", "azul");
+        }
+      }
+
+      setModoArmado(null);
+      setValorReferenciaFechamento(null);
+      localStorage.removeItem("monitor_modo_armado");
+      localStorage.removeItem("monitor_ref_fechamento");
+    }
+  };
+
+  const handleSimularFechamentoC = () => {
     try {
-      if (localStorage.getItem("SOUND_KEY") === "0") return;
-      const audio = new Audio(msnSound);
-      audio.volume = 1.0;
-      audio.play().catch(() => {});
-    } catch (e) {}
+      const valorStorage = localStorage.getItem("ultimo_4h_fechamento");
+      const fechamentoUltimo4H = valorStorage ? valorStorage : candles4h.at(-2)?.close;
+      
+      if (fechamentoUltimo4H !== undefined && fechamentoUltimo4H !== null) {
+        processarVerificacaoFechamento(String(fechamentoUltimo4H));
+      } else {
+        console.warn("Nenhum fechamento de 4H encontrado no localStorage ou nas velas.");
+      }
+    } catch (err) {}
   };
 
   const atualizarValorEntrada = (novoNum: number) => {
@@ -110,80 +174,44 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MediasAtrCa
     atualizarValorEntrada(Math.max(0, atual - 0.010));
   };
 
+  const handleArmarTopo = () => {
+    try {
+      const valorStorage = localStorage.getItem("ultimo_4h_fechamento");
+      const fechamentoAtual = valorStorage || (candles4h.at(-2)?.close !== undefined ? String(candles4h.at(-2)?.close) : "0.000");
+      
+      setValorReferenciaFechamento(fechamentoAtual);
+      setModoArmado("TOPO");
+      localStorage.setItem("monitor_modo_armado", "TOPO");
+      localStorage.setItem("monitor_ref_fechamento", fechamentoAtual);
+    } catch (err) {}
+  };
+
+  const handleArmarFundo = () => {
+    try {
+      const valorStorage = localStorage.getItem("ultimo_4h_fechamento");
+      const fechamentoAtual = valorStorage || (candles4h.at(-2)?.close !== undefined ? String(candles4h.at(-2)?.close) : "0.000");
+      
+      setValorReferenciaFechamento(fechamentoAtual);
+      setModoArmado("FUNDO");
+      localStorage.setItem("monitor_modo_armado", "FUNDO");
+      localStorage.setItem("monitor_ref_fechamento", fechamentoAtual);
+    } catch (err) {}
+  };
+
   const handleZerar = () => {
     setValorEntrada("");
     setValorSaida("0.000");
     setStatusCor("normal");
-    setRompido(false);
-    setCandleAlvoTimestamp(null);
+    setModoArmado(null);
+    setValorReferenciaFechamento(null);
     try {
       localStorage.removeItem("monitor_entrada_manual");
-      localStorage.removeItem("monitor_rompido");
-      localStorage.removeItem("monitor_candle_alvo_ts");
+      localStorage.removeItem("monitor_saida_manual");
+      localStorage.removeItem("monitor_status_cor");
+      localStorage.removeItem("monitor_modo_armado");
+      localStorage.removeItem("monitor_ref_fechamento");
     } catch (err) {}
   };
-
-  // 1. Monitora o preço para detectar quando o candle toca o valor digitado
-  useEffect(() => {
-    if (!valorEntrada || valorEntrada.trim() === "" || candles4h.length === 0) return;
-    if (rompido) return;
-
-    const numEntrada = parseFloat(valorEntrada.replace(",", "."));
-    if (isNaN(numEntrada)) return;
-
-    const candleAtual = candles4h[candles4h.length - 1];
-    
-    // Regra original de toque no candle (High e Low cruzam a entrada)
-    if (candleAtual.high >= numEntrada && candleAtual.low <= numEntrada) {
-      setRompido(true);
-      const candleId = candleAtual.timestamp || candleAtual.time || candles4h.length - 1;
-      setCandleAlvoTimestamp(Number(candleId));
-
-      try {
-        localStorage.setItem("monitor_rompido", "true");
-        localStorage.setItem("monitor_candle_alvo_ts", String(candleId));
-      } catch (err) {}
-    }
-  }, [candles4h, valorEntrada, rompido]);
-
-  // 2. Após romper, espera fechar e faz a comparação exata do close
-  useEffect(() => {
-    if (!rompido || candleAlvoTimestamp === null || candles4h.length === 0 || !valorEntrada) return;
-
-    const numEntrada = parseFloat(valorEntrada.replace(",", "."));
-    if (isNaN(numEntrada)) return;
-
-    const candleTocadoIndex = candles4h.findIndex(c => {
-      const id = c.timestamp || c.time || candles4h.indexOf(c);
-      return Number(id) === candleAlvoTimestamp;
-    });
-
-    if (candleTocadoIndex === -1) return;
-
-    const candleTocado = candles4h[candleTocadoIndex];
-    const candleFechado = candles4h.length > candleTocadoIndex + 1;
-
-    if (candleFechado) {
-      const precoFechamento = candleTocado.close;
-      const precoAbertura = candleTocado.open;
-
-      const ehOperacaoDeVenda = numEntrada < precoAbertura;
-      let alarmeVermelho = false;
-
-      if (ehOperacaoDeVenda) {
-        alarmeVermelho = precoFechamento > numEntrada;
-      } else {
-        alarmeVermelho = precoFechamento < numEntrada;
-      }
-
-      setValorSaida(precoFechamento.toFixed(3));
-      setStatusCor(alarmeVermelho ? "vermelho" : "azul");
-
-      if (alarmeVermelho) {
-        playSound();
-      }
-    }
-  }, [candles4h, candleAlvoTimestamp, rompido, valorEntrada]);
 
   const getSaidaStyles = () => {
     if (statusCor === "vermelho") {
@@ -204,9 +232,41 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MediasAtrCa
         <div className="flex-[1.5] flex flex-col">
           <div className="mb-1 flex items-center justify-between">
             <span className="text-base font-semibold text-cyan-300">
-              MONITOR DE SAÍDA
+              MONITOR
             </span>
             <div className="flex items-center space-x-1.5">
+              <button
+                onClick={handleArmarFundo}
+                className={`text-[11px] font-mono px-2 py-1 rounded border font-bold shadow cursor-pointer transition-all ${
+                  modoArmado === "FUNDO"
+                    ? "bg-blue-500 text-white border-white animate-pulse ring-2 ring-blue-400"
+                    : "border-blue-600 bg-blue-600/20 text-blue-400 hover:bg-blue-600 hover:text-white"
+                }`}
+                title="Armar Fundo (F)"
+              >
+                F
+              </button>
+
+              <button
+                onClick={handleArmarTopo}
+                className={`text-[11px] font-mono px-2 py-1 rounded border font-bold shadow cursor-pointer transition-all ${
+                  modoArmado === "TOPO"
+                    ? "bg-red-500 text-white border-white animate-pulse ring-2 ring-red-400"
+                    : "border-red-600 bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white"
+                }`}
+                title="Armar Topo (T)"
+              >
+                T
+              </button>
+
+              <button
+                onClick={handleSimularFechamentoC}
+                className="text-[11px] font-mono px-2 py-1 rounded border border-emerald-600 bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600 hover:text-white transition-all font-bold shadow cursor-pointer"
+                title="Simular Fechamento do Candle (C)"
+              >
+                C
+              </button>
+
               <button
                 onClick={handleDecrementar}
                 className="text-[11px] font-mono px-2.5 py-1 rounded border border-red-600 bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white hover:border-red-500 transition-all font-bold shadow cursor-pointer"
@@ -230,9 +290,9 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MediasAtrCa
               </button>
             </div>
           </div>
+          
           <div className="rounded-xl border border-[#4a4a4a] p-3 flex-1 bg-black flex flex-col justify-center gap-3 items-center">
             
-            {/* ENTRADA */}
             <div className="w-full max-w-[280px] flex flex-col gap-2">
               <div className="flex items-center justify-between rounded-lg bg-[#1e3a8a]/40 border border-[#2563eb] px-3 py-2">
                 <span className="font-bold text-blue-400 text-[18px] tracking-wide">ENTRADA</span>
@@ -246,7 +306,6 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MediasAtrCa
               </div>
             </div>
 
-            {/* SAÍDA */}
             <div className="w-full max-w-[280px] flex flex-col gap-2">
               <div className={`flex items-center justify-between rounded-lg bg-[#27272a]/40 border ${currentStyle.border} px-3 py-2 transition-colors`}>
                 <span className="font-bold text-zinc-400 text-[18px] tracking-wide">SAÍDA</span>
@@ -261,7 +320,6 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MediasAtrCa
           </div>
         </div>
 
-        {/* BLOCO INFERIOR: CRONÔMETRO 4H */}
         <div className="flex-1 flex flex-col">
           <div className="rounded-xl border border-[#4a4a4a] p-3 flex-1 bg-black flex flex-col justify-center items-center">
             <span className="font-semibold text-cyan-300 text-[16px] tracking-wide mb-1">
