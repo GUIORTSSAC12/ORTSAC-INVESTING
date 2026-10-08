@@ -97,7 +97,7 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MonitorProp
     return () => clearInterval(intervalCronometro);
   }, []);
 
-  // NOVO: Observador inteligente do localStorage quando o monitor está armado
+  // Observador inteligente do localStorage quando o monitor está armado
   useEffect(() => {
     if (!modoArmado) return;
 
@@ -105,12 +105,11 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MonitorProp
       try {
         const valorStorageAtual = localStorage.getItem("ultimo_4h_fechamento");
         
-        // Se o localStorage mudou em relação à referência salva quando você armou o monitor
         if (valorStorageAtual && valorStorageAtual !== valorReferenciaFechamento) {
           processarVerificacaoFechamento(valorStorageAtual);
         }
       } catch (err) {}
-    }, 2000); // Verifica a cada 2 segundos se o dashboard atualizou o localStorage
+    }, 2000);
 
     return () => clearInterval(intervalVerificacaoStorage);
   }, [modoArmado, valorReferenciaFechamento, valorEntrada]);
@@ -152,19 +151,6 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MonitorProp
       localStorage.removeItem("monitor_modo_armado");
       localStorage.removeItem("monitor_ref_fechamento");
     }
-  };
-
-  const handleSimularFechamentoC = () => {
-    try {
-      const valorStorage = localStorage.getItem("ultimo_4h_fechamento");
-      const fechamentoUltimo4H = valorStorage ? valorStorage : candles4h.at(-2)?.close;
-      
-      if (fechamentoUltimo4H !== undefined && fechamentoUltimo4H !== null) {
-        processarVerificacaoFechamento(String(fechamentoUltimo4H));
-      } else {
-        console.warn("Nenhum fechamento de 4H encontrado no localStorage ou nas velas.");
-      }
-    } catch (err) {}
   };
 
   const atualizarValorEntrada = (novoNum: number) => {
@@ -274,14 +260,6 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MonitorProp
                 title="Armar Topo (T)"
               >
                 T
-              </button>
-
-              <button
-                onClick={handleSimularFechamentoC}
-                className="text-[11px] font-mono px-2 py-1 rounded border border-emerald-600 bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600 hover:text-white transition-all font-bold shadow cursor-pointer"
-                title="Simular Fechamento do Candle (C)"
-              >
-                C
               </button>
 
               <button
