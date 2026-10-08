@@ -88,7 +88,7 @@ export function GestaoDeRisco() {
 
         setSaldoAtual(saldo.toFixed(2));
 
-        const tetoRiscoMaximo = saldo > 10000 ? (saldo / 13) - 1.00 : (saldo / 13) - 0.02;
+        const tetoRiscoMaximo = saldo > 10000 ? (saldo / 13) - 1.00 : (saldo / 13) - 0.03;
 
         if (targetSaved) {
           const valorBaseTarget = parseFloat(targetSaved); 
