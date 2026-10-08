@@ -1380,9 +1380,10 @@ function Index({ onLogout }: { onLogout: () => void }) {
                     const mes = parseFloat((localStorage.getItem("variacoes_saldo_mes") || "8.81").replace(",", ".")) || 0;
                     const atual = parseFloat((localStorage.getItem("gestao_saldo_interno") || "0").replace(",", ".")) || 0;
                     
-                    const pctAnual = anual !== 0 ? ((atual - anual) / anual) * 100 : 0;
-                    const pctMes = mes !== 0 ? ((atual - mes) / mes) * 100 : 0;
-                    const lucro = Number((atual - mes).toFixed(2));
+                    // O MÊS AGORA É O MANDANTE NAS FÓRMULAS
+                    const pctAnual = anual !== 0 ? ((mes - anual) / anual) * 100 : 0;
+                    const pctMes = atual !== 0 ? ((mes - atual) / atual) * 100 : 0;
+                    const lucro = Number((mes - atual).toFixed(2));
 
                     const strPctAnual = `${pctAnual >= 0 ? "+" : ""}${pctAnual.toFixed(2)}%`;
                     const strPctMes = `${pctMes >= 0 ? "+" : ""}${pctMes.toFixed(2)}%`;
@@ -1433,9 +1434,10 @@ function Index({ onLogout }: { onLogout: () => void }) {
                     const mes = parseFloat(val.replace(",", ".")) || 0;
                     const atual = parseFloat((localStorage.getItem("gestao_saldo_interno") || "0").replace(",", ".")) || 0;
                     
-                    const pctAnual = anual !== 0 ? ((atual - anual) / anual) * 100 : 0;
-                    const pctMes = mes !== 0 ? ((atual - mes) / mes) * 100 : 0;
-                    const lucro = Number((atual - mes).toFixed(2));
+                    // O MÊS AGORA É O MANDANTE NAS FÓRMULAS
+                    const pctAnual = anual !== 0 ? ((mes - anual) / anual) * 100 : 0;
+                    const pctMes = atual !== 0 ? ((mes - atual) / atual) * 100 : 0;
+                    const lucro = Number((mes - atual).toFixed(2));
 
                     const strPctAnual = `${pctAnual >= 0 ? "+" : ""}${pctAnual.toFixed(2)}%`;
                     const strPctMes = `${pctMes >= 0 ? "+" : ""}${pctMes.toFixed(2)}%`;
@@ -1501,8 +1503,9 @@ function Index({ onLogout }: { onLogout: () => void }) {
                 >
                   {(() => {
                     const anual = parseFloat((localStorage.getItem("variacoes_anual") || "12.95").replace(",", ".")) || 0;
-                    const atual = parseFloat((localStorage.getItem("gestao_saldo_interno") || "0").replace(",", ".")) || 0;
-                    const pct = anual !== 0 ? ((atual - anual) / anual) * 100 : 0;
+                    const mes = parseFloat((localStorage.getItem("variacoes_saldo_mes") || "8.81").replace(",", ".")) || 0;
+                    // (MES - ANUAL) / ANUAL
+                    const pct = anual !== 0 ? ((mes - anual) / anual) * 100 : 0;
                     const res = `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`;
                     localStorage.setItem("variacoes_pct_anual", res);
                     return res;
@@ -1523,7 +1526,8 @@ function Index({ onLogout }: { onLogout: () => void }) {
                   {(() => {
                     const mes = parseFloat((localStorage.getItem("variacoes_saldo_mes") || "8.81").replace(",", ".")) || 0;
                     const atual = parseFloat((localStorage.getItem("gestao_saldo_interno") || "0").replace(",", ".")) || 0;
-                    const pctMes = mes !== 0 ? ((atual - mes) / mes) * 100 : 0;
+                    // (MES - ATUAL) / ATUAL
+                    const pctMes = atual !== 0 ? ((mes - atual) / atual) * 100 : 0;
                     const res = `${pctMes >= 0 ? "+" : ""}${pctMes.toFixed(2)}%`;
                     localStorage.setItem("variacoes_pct_mes", res);
                     return res;
@@ -1544,7 +1548,8 @@ function Index({ onLogout }: { onLogout: () => void }) {
                   {(() => {
                     const atual = parseFloat((localStorage.getItem("gestao_saldo_interno") || "0").replace(",", ".")) || 0;
                     const mes = parseFloat((localStorage.getItem("variacoes_saldo_mes") || "8.81").replace(",", ".")) || 0;
-                    const diff = Number((atual - mes).toFixed(2));
+                    // MES - ATUAL
+                    const diff = Number((mes - atual).toFixed(2));
                     const res = `${diff >= 0 ? "+" : ""}${diff.toFixed(2)}`;
                     localStorage.setItem("variacoes_lucro_valor", res);
                     return res;
@@ -1556,7 +1561,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
 
         </div>
       </div>
-  </div>
+    </div>
         <div className="rounded-2xl border border-[#4a4a4a] bg-black p-5 flex flex-col h-full justify-between shadow-lg font-mono">
   <div className="flex flex-col space-y-4">
     <div>
