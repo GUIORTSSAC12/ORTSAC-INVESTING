@@ -68,6 +68,7 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MonitorProp
     } catch (e) {}
   };
 
+  // Cronômetro apenas visual (mantido para você acompanhar na tela)
   useEffect(() => {
     const calcularTempo4H = () => {
       const agora = new Date();
@@ -95,6 +96,24 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MonitorProp
     const intervalCronometro = setInterval(calcularTempo4H, 1000);
     return () => clearInterval(intervalCronometro);
   }, []);
+
+  // NOVO: Observador inteligente do localStorage quando o monitor está armado
+  useEffect(() => {
+    if (!modoArmado) return;
+
+    const intervalVerificacaoStorage = setInterval(() => {
+      try {
+        const valorStorageAtual = localStorage.getItem("ultimo_4h_fechamento");
+        
+        // Se o localStorage mudou em relação à referência salva quando você armou o monitor
+        if (valorStorageAtual && valorStorageAtual !== valorReferenciaFechamento) {
+          processarVerificacaoFechamento(valorStorageAtual);
+        }
+      } catch (err) {}
+    }, 2000); // Verifica a cada 2 segundos se o dashboard atualizou o localStorage
+
+    return () => clearInterval(intervalVerificacaoStorage);
+  }, [modoArmado, valorReferenciaFechamento, valorEntrada]);
 
   const processarVerificacaoFechamento = (fechamentoAtualStr: string) => {
     if (!fechamentoAtualStr) return;
@@ -176,25 +195,23 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MonitorProp
 
   const handleArmarTopo = () => {
     try {
-      const valorStorage = localStorage.getItem("ultimo_4h_fechamento");
-      const fechamentoAtual = valorStorage || (candles4h.at(-2)?.close !== undefined ? String(candles4h.at(-2)?.close) : "0.000");
+      const valorStorage = localStorage.getItem("ultimo_4h_fechamento") || (candles4h.at(-2)?.close !== undefined ? String(candles4h.at(-2)?.close) : "0.000");
       
-      setValorReferenciaFechamento(fechamentoAtual);
+      setValorReferenciaFechamento(valorStorage);
       setModoArmado("TOPO");
       localStorage.setItem("monitor_modo_armado", "TOPO");
-      localStorage.setItem("monitor_ref_fechamento", fechamentoAtual);
+      localStorage.setItem("monitor_ref_fechamento", valorStorage);
     } catch (err) {}
   };
 
   const handleArmarFundo = () => {
     try {
-      const valorStorage = localStorage.getItem("ultimo_4h_fechamento");
-      const fechamentoAtual = valorStorage || (candles4h.at(-2)?.close !== undefined ? String(candles4h.at(-2)?.close) : "0.000");
+      const valorStorage = localStorage.getItem("ultimo_4h_fechamento") || (candles4h.at(-2)?.close !== undefined ? String(candles4h.at(-2)?.close) : "0.000");
       
-      setValorReferenciaFechamento(fechamentoAtual);
+      setValorReferenciaFechamento(valorStorage);
       setModoArmado("FUNDO");
       localStorage.setItem("monitor_modo_armado", "FUNDO");
-      localStorage.setItem("monitor_ref_fechamento", fechamentoAtual);
+      localStorage.setItem("monitor_ref_fechamento", valorStorage);
     } catch (err) {}
   };
 

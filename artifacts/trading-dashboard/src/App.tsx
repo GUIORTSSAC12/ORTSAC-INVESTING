@@ -1174,21 +1174,63 @@ function Index({ onLogout }: { onLogout: () => void }) {
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="relative border border-[#4a4a4a] bg-black rounded-xl p-2 flex flex-col shadow-lg text-white font-mono w-full h-auto min-h-[360px]">
-              <h3 className="text-cyan-400 font-bold text-[16px] tracking-wider uppercase mb-2">
-                GBP/JPY 4H
-              </h3>
-              <div className="flex-1 min-h-0">
-                <Minigrafico
-                  precoAtual={data?.price ?? null}
-                  candles4h={candles4h}
-                  tradeAtivo={tradeMinigrafico}
-                />
-              </div>
-            </div>
-            <MediasAtrCard />
-          </div>
-        </section>
+  <div className="relative border border-[#4a4a4a] bg-black rounded-xl p-2 flex flex-col shadow-lg text-white font-mono w-full h-auto min-h-[360px]">
+    
+    <div className="flex items-center justify-between mb-2 px-1">
+      <h3 className="text-cyan-400 font-bold text-[16px] tracking-wider uppercase">
+        GBP/JPY 4H
+      </h3>
+
+      <div className="flex items-center space-x-2">
+        <button
+          onClick={() => {
+            const atual = parseFloat(localStorage.getItem("mensal_percentual_acumulado") || "0");
+            const novo = Math.round((atual - 0.10) * 100) / 100;
+            localStorage.setItem("mensal_percentual_acumulado", novo.toFixed(2));
+            window.dispatchEvent(new Event("storage"));
+          }}
+          className="px-2 py-0.5 rounded border border-red-600 bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white transition-all font-bold text-xs cursor-pointer shadow"
+          title="Subtrair 0.10%"
+        >
+          -
+        </button>
+        
+        <span className={`font-bold text-[24px] tabular-nums leading-none tracking-tight ${
+          (parseFloat(localStorage.getItem("mensal_percentual_acumulado") || "0")) >= 0 ? "text-emerald-600" : "text-red-600"
+        }`}>
+          {(() => {
+            const val = parseFloat(localStorage.getItem("mensal_percentual_acumulado") || "0");
+            return `${val > 0 ? "+" : ""}${val.toFixed(2)}%`;
+          })()}
+        </span>
+
+        <button
+          onClick={() => {
+            const atual = parseFloat(localStorage.getItem("mensal_percentual_acumulado") || "0");
+            const novo = Math.round((atual + 0.10) * 100) / 100;
+            localStorage.setItem("mensal_percentual_acumulado", novo.toFixed(2));
+            window.dispatchEvent(new Event("storage"));
+          }}
+          className="px-2 py-0.5 rounded border border-emerald-600 bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600 hover:text-white transition-all font-bold text-xs cursor-pointer shadow"
+          title="Adicionar 0.10%"
+        >
+          +
+        </button>
+      </div>
+    </div>
+
+    <div className="flex-1 min-h-0">
+      <Minigrafico
+        precoAtual={data?.price ?? null}
+        candles4h={candles4h}
+        tradeAtivo={tradeMinigrafico}
+      />
+    </div>
+  </div>
+
+  <MediasAtrCard />
+</div>
+</section>
         <section className="mt-6 pb-8">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div className="rounded-2xl border border-[#4a4a4a] bg-black p-4 flex flex-col h-full min-h-[220px] shadow-lg font-mono">
