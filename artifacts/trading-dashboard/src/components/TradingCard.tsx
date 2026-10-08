@@ -14,6 +14,7 @@ export interface TradeStrategy {
   entry: number;
   stopVal: number;
   gainVal: number;
+  zoneVal: number;
   stopText: string;
   stopClass: string;
   gainText: string;
@@ -22,6 +23,7 @@ export interface TradeStrategy {
 const INITIAL_STOP_PCT = 0.2; 
 const STOP_EXTRA_POINTS = 0.010; 
 const INITIAL_GAIN_PCT = 0.6; 
+const ZONE_PCT = 0.77; 
 const PROTECTION_TRIGGER_PCT = 0.3; 
 const PROTECTED_STOP_PCT = 0.1; 
 
@@ -30,7 +32,6 @@ const formatForexPrice = (value: number | null | undefined): string => {
   return Number(value.toFixed(3)).toFixed(3);
 };
 
-// Extractor blindado para pegar o preço real (maior que 10)
 const extractPriceFromReport = (report: string | null): number | null => {
   if (!report) return null;
   
@@ -94,7 +95,6 @@ export default function TradingCard({
   const incomingReport =
     isAguardando || !rawIncomingReport ? null : rawIncomingReport;
 
-  // ESTADOS INICIAIS TOTALMENTE BLINDADOS CONTRA LIXO DO STORAGE
   const [activeStrategy, setActiveStrategy] = useState<TradeStrategy | null>(() => {
     try {
       const saved = localStorage.getItem("TRADING_CARD_ACTIVE_STRATEGY");
@@ -114,7 +114,6 @@ export default function TradingCard({
     return localStorage.getItem("TRADING_CARD_STOP_PROTECTED") === "true";
   });
 
-  // Ref para controlar o tempo de vida do card e evitar disparo falso no primeiro render
   const mountTimeRef = useRef<number>(Date.now());
 
   useEffect(() => {
@@ -150,12 +149,10 @@ export default function TradingCard({
   };
 
   const clearCard = () => {
-    // REMOVE DO STORAGE PRIMEIRO DE FORMA IMEDIATA
     localStorage.removeItem("TRADING_CARD_ACTIVE_STRATEGY");
     localStorage.removeItem("TRADING_CARD_REPORT_NAME");
     localStorage.removeItem("TRADING_CARD_STOP_PROTECTED");
 
-    // ZERA OS ESTADOS LOCAIS
     setActiveStrategy(null);
     setActiveReportName(null);
     setIsStopProtected(false);
@@ -170,10 +167,9 @@ export default function TradingCard({
 
     processedIncomingKeyRef.current = incomingReport;
 
-    // GARANTIA ABSOLUTA DE ZERAR A PROTEÇÃO AO ENTRAR NUM NOVO SINAL
     localStorage.removeItem("TRADING_CARD_STOP_PROTECTED");
     setIsStopProtected(false);
-    mountTimeRef.current = Date.now(); // Reseta o relógio de segurança do novo card
+    mountTimeRef.current = Date.now();
 
     const reportUpper = incomingReport.toUpperCase();
     const isSell = reportUpper.includes("VENDA") || reportUpper.includes("TOPO");
@@ -198,12 +194,19 @@ export default function TradingCard({
       ).toFixed(3),
     );
 
+    const zVal = Number(
+      (
+        calculationPrice * (isSell ? 1 - ZONE_PCT / 100 : 1 + ZONE_PCT / 100)
+      ).toFixed(3),
+    );
+
     const newCalculatedData: TradeStrategy = {
       type: isSell ? "VENDA" : "COMPRA",
       title: reportUpper.split("|")[0].trim() || "PADRÃO",
       entry: calculationPrice,
       stopVal: sVal,
       gainVal: gVal,
+      zoneVal: zVal,
       stopText: sText,
       stopClass: "text-red-500",
       gainText: gText,
@@ -219,7 +222,6 @@ export default function TradingCard({
       return;
     }
 
-    // TRAVA DE SEGURANÇA TEMPORAL: Ignora qualquer cálculo de proteção nos primeiros 1.5 segundos de vida do card
     if (Date.now() - mountTimeRef.current < 1500) {
       return;
     }
@@ -407,9 +409,41 @@ export default function TradingCard({
                     {formatForexPrice(activeStrategy.gainVal)}
                   </span>
                 </div>
+
+                {/* ZONE (-0,77%) ABAIXO DO GAIN PARA VENDA (EM VERMELHO) */}
+                <div className="flex justify-between items-center px-1 py-0.5">
+                  <span
+                    style={{ fontSize: fontSizeConfig.labelPx }}
+                    className="text-red-500 font-bold uppercase tracking-wider"
+                  >
+                    ZONE (-0,77%)
+                  </span>
+                  <span
+                    style={{ fontSize: fontSizeConfig.valuePx }}
+                    className="text-red-500 font-bold tracking-wide drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]"
+                  >
+                    {formatForexPrice(activeStrategy.zoneVal)}
+                  </span>
+                </div>
               </>
             ) : (
               <>
+                {/* ZONE (+0,77%) ACIMA DO GAIN PARA COMPRA (EM VERMELHO) */}
+                <div className="flex justify-between items-center px-1 py-0.5">
+                  <span
+                    style={{ fontSize: fontSizeConfig.labelPx }}
+                    className="text-red-500 font-bold uppercase tracking-wider"
+                  >
+                    ZONE (+0,77%)
+                  </span>
+                  <span
+                    style={{ fontSize: fontSizeConfig.valuePx }}
+                    className="text-red-500 font-bold tracking-wide drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]"
+                  >
+                    {formatForexPrice(activeStrategy.zoneVal)}
+                  </span>
+                </div>
+
                 <div className="flex justify-between items-center px-1 py-0.5">
                   <span
                     style={{ fontSize: fontSizeConfig.labelPx }}
