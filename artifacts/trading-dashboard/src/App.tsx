@@ -895,81 +895,104 @@ function Index({ onLogout }: { onLogout: () => void }) {
     <div className="min-h-screen bg-black text-foreground font-mono">
       <div className="mx-auto w-full max-w-[1600px] px-[clamp(0.75rem,2vw,2rem)] pb-[clamp(1rem,2.5vh,2.5rem)] pt-[clamp(2.5rem,6vh,5rem)]">
         <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h1 className="text-base font-semibold tracking-tight">
-              ORTSAC INVESTING
-            </h1>
-            <p className="text-xs text-muted-foreground">
-              Fonte: BingX · Atualização a cada {POLL_MS / 1000}s
-            </p>
-          </div>
+  <div>
+    <h1 className="text-base font-semibold tracking-tight">
+      ORTSAC INVESTING
+    </h1>
+    <p className="text-xs text-muted-foreground">
+      Fonte: BingX · Atualização a cada {POLL_MS / 1000}s
+    </p>
+  </div>
 
-          <div className="flex items-center gap-3">
-            <BotaoSomVix />
-            <div className="rounded-xl border border-[#4a4a4a] bg-black p-2.5 min-w-[130px] flex flex-col items-center justify-center">
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground text-center">
-                Ptax
-              </div>
-              <div className="text-2xl font-bold tabular-nums leading-none mt-1 text-center">
-                {ptaxVenda}
-              </div>
-            </div>
-            <div className="rounded-xl border border-[#4a4a4a] bg-black px-4 py-2 text-center">
-              <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
-                Data atual
-              </div>
-              <div
-                className="text-2xl font-bold tabular-nums leading-tight"
-                suppressHydrationWarning
-              >
-                {brasiliaDate}
-              </div>
-            </div>
-            <div className="rounded-xl border border-[#4a4a4a] bg-black px-4 py-2 text-center">
-              <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
-                Hora atual em Londres
-              </div>
-              <div
-                className="text-2xl font-bold tabular-nums leading-tight"
-                suppressHydrationWarning
-              >
-                {londonClock}
-              </div>
-            </div>
-            <button
-              onClick={() => setUtcOffset(0)}
-              className={`rounded-lg px-3 py-2 text-xs font-semibold leading-tight transition-colors ${
-                utcOffset === 0
-                  ? "bg-blue-600 text-Cyan-300"
-                  : "bg-secondary text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              LONDRES
-              <br />
-              UTC 0
-            </button>
-            <button
-              onClick={() => setUtcOffset(1)}
-              className={`rounded-lg px-3 py-2 text-xs font-semibold leading-tight transition-colors ${
-                utcOffset === 1
-                  ? "bg-blue-600 text-Cyan-300"
-                  : "bg-secondary text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              LONDRES
-              <br />
-              UTC +1
-            </button>
-            <button
-              onClick={onLogout}
-              title="Sair"
-              className="flex items-center gap-1.5 rounded-lg bg-secondary px-3 py-2 text-xs font-semibold text-muted-foreground hover:text-red-600 transition-colors"
-            >
-              <LogOut className="h-3.5 w-3.5" />
-              SAIR
-            </button>
-          </div>
-        </header>
+  <div className="flex items-center gap-3">
+    {/* 1. Botão do Som */}
+    <BotaoSomVix />
+
+    {/* 2. CARD ANUAL (Mesmo tamanho/estilo da Ptax) */}
+    <div className="rounded-xl border border-[#4a4a4a] bg-black p-2.5 min-w-[130px] flex flex-col items-center justify-center">
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground text-center">
+        ANUAL
+      </div>
+      <div className={`text-2xl font-bold tabular-nums leading-none mt-1 text-center ${
+        !(localStorage.getItem("variacoes_pct_anual") || "").includes("-")
+          ? "text-emerald-600"
+          : "text-red-600"
+      }`}>
+        {localStorage.getItem("variacoes_pct_anual") || "0.00%"}
+      </div>
+    </div>
+
+    {/* 3. Card Ptax */}
+    <div className="rounded-xl border border-[#4a4a4a] bg-black p-2.5 min-w-[130px] flex flex-col items-center justify-center">
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground text-center">
+        Ptax
+      </div>
+      <div className="text-2xl font-bold tabular-nums leading-none mt-1 text-center">
+        {ptaxVenda}
+      </div>
+    </div>
+
+    {/* 4. Data Atual */}
+    <div className="rounded-xl border border-[#4a4a4a] bg-black px-4 py-2 text-center">
+      <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
+        Data atual
+      </div>
+      <div
+        className="text-2xl font-bold tabular-nums leading-tight"
+        suppressHydrationWarning
+      >
+        {brasiliaDate}
+      </div>
+    </div>
+
+    {/* 5. Hora Atual em Londres */}
+    <div className="rounded-xl border border-[#4a4a4a] bg-black px-4 py-2 text-center">
+      <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
+        Hora atual em Londres
+      </div>
+      <div
+        className="text-2xl font-bold tabular-nums leading-tight"
+        suppressHydrationWarning
+      >
+        {londonClock}
+      </div>
+    </div>
+
+    {/* Botões de UTC Londres e Sair */}
+    <button
+      onClick={() => setUtcOffset(0)}
+      className={`rounded-lg px-3 py-2 text-xs font-semibold leading-tight transition-colors ${
+        utcOffset === 0
+          ? "bg-blue-600 text-Cyan-300"
+          : "bg-secondary text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      LONDRES
+      <br />
+      UTC 0
+    </button>
+    <button
+      onClick={() => setUtcOffset(1)}
+      className={`rounded-lg px-3 py-2 text-xs font-semibold leading-tight transition-colors ${
+        utcOffset === 1
+          ? "bg-blue-600 text-Cyan-300"
+          : "bg-secondary text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      LONDRES
+      <br />
+      UTC +1
+    </button>
+    <button
+      onClick={onLogout}
+      title="Sair"
+      className="flex items-center gap-1.5 rounded-lg bg-secondary px-3 py-2 text-xs font-semibold text-muted-foreground hover:text-red-600 transition-colors"
+    >
+      <LogOut className="h-3.5 w-3.5" />
+      SAIR
+    </button>
+  </div>
+</header>
 
         <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div
@@ -1173,15 +1196,26 @@ function Index({ onLogout }: { onLogout: () => void }) {
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
   <div className="relative border border-[#4a4a4a] bg-black rounded-xl p-2 flex flex-col shadow-lg text-white font-mono w-full h-auto min-h-[360px]">
-    
+
     <div className="flex items-center justify-between mb-2 px-1">
       <h3 className="text-cyan-400 font-bold text-[16px] tracking-wider uppercase">
         GBP/JPY 4H
       </h3>
 
-      <div className="flex items-center space-x-2">
+      <div className="flex items-start space-x-2">
+        <button
+          onClick={() => {
+            localStorage.setItem("mensal_percentual_acumulado", "0.00");
+            window.dispatchEvent(new Event("storage"));
+          }}
+          className="px-2 py-0.5 rounded border border-blue-600 bg-blue-600/20 text-blue-400 hover:bg-blue-600 hover:text-white transition-all font-bold text-xs cursor-pointer shadow mt-0.5"
+          title="Zerar acumulador mensal"
+        >
+          Z
+        </button>
+
         <button
           onClick={() => {
             const atual = parseFloat(localStorage.getItem("mensal_percentual_acumulado") || "0");
@@ -1189,20 +1223,31 @@ function Index({ onLogout }: { onLogout: () => void }) {
             localStorage.setItem("mensal_percentual_acumulado", novo.toFixed(2));
             window.dispatchEvent(new Event("storage"));
           }}
-          className="px-2 py-0.5 rounded border border-red-600 bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white transition-all font-bold text-xs cursor-pointer shadow"
+          className="px-2 py-0.5 rounded border border-red-600 bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white transition-all font-bold text-xs cursor-pointer shadow mt-0.5"
           title="Subtrair 0.10%"
         >
           -
         </button>
-        
-        <span className={`font-bold text-[24px] tabular-nums leading-none tracking-tight ${
-          (parseFloat(localStorage.getItem("mensal_percentual_acumulado") || "0")) >= 0 ? "text-emerald-600" : "text-red-600"
-        }`}>
-          {(() => {
-            const val = parseFloat(localStorage.getItem("mensal_percentual_acumulado") || "0");
-            return `${val > 0 ? "+" : ""}${val.toFixed(2)}%`;
-          })()}
-        </span>
+
+        {/* BLOCO CENTRAL: OS DOIS EM 24PX */}
+        <div className="flex flex-col items-center leading-none">
+          {/* Performance da Estratégia (24px) */}
+          <span className={`font-bold text-[24px] tabular-nums leading-none tracking-tight ${
+            (parseFloat(localStorage.getItem("mensal_percentual_acumulado") || "0")) >= 0 ? "text-emerald-600" : "text-red-600"
+          }`}>
+            {(() => {
+              const val = parseFloat(localStorage.getItem("mensal_percentual_acumulado") || "0");
+              return `${val > 0 ? "+" : ""}${val.toFixed(2)}%`;
+            })()}
+          </span>
+
+          {/* Variação do Saldo do Mês (24px - empurrado para baixo) */}
+          <span className={`font-bold text-[24px] tabular-nums leading-none mt-1 ${
+            !(localStorage.getItem("variacoes_pct_mes") || "").includes("-") ? "text-emerald-600" : "text-red-600"
+          }`}>
+            {localStorage.getItem("variacoes_pct_mes") || "+0.00%"}
+          </span>
+        </div>
 
         <button
           onClick={() => {
@@ -1211,7 +1256,7 @@ function Index({ onLogout }: { onLogout: () => void }) {
             localStorage.setItem("mensal_percentual_acumulado", novo.toFixed(2));
             window.dispatchEvent(new Event("storage"));
           }}
-          className="px-2 py-0.5 rounded border border-emerald-600 bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600 hover:text-white transition-all font-bold text-xs cursor-pointer shadow"
+          className="px-2 py-0.5 rounded border border-emerald-600 bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600 hover:text-white transition-all font-bold text-xs cursor-pointer shadow mt-0.5"
           title="Adicionar 0.10%"
         >
           +
@@ -1231,23 +1276,288 @@ function Index({ onLogout }: { onLogout: () => void }) {
   <MediasAtrCard />
 </div>
 </section>
-        <section className="mt-6 pb-8">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="rounded-2xl border border-[#4a4a4a] bg-black p-4 flex flex-col h-full min-h-[220px] shadow-lg font-mono">
-              <div className="flex items-center justify-between mb-3">
-                <span
-                  style={{ fontSize: "16px" }}
-                  className="font-bold tracking-wider text-cyan-300 uppercase block"
-                >
-                  VALIDAÇÃO
-                </span>
-              </div>
-              <div className="flex-1 flex items-center justify-center">
-                {/* Vazio */}
+        
+<section className="mt-6 pb-8">
+  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="rounded-2xl border border-[#4a4a4a] bg-black p-4 flex flex-col h-full min-h-[220px] shadow-lg font-mono">
+      <div className="flex items-center justify-between mb-3">
+        <span
+          style={{ fontSize: "16px" }}
+          className="font-bold tracking-wider text-cyan-300 uppercase block"
+        >
+          VARIAÇÕES
+        </span>
+
+        <button
+          id="variacoes_toggle_visibility"
+          type="button"
+          onClick={() => {
+            const anualInput = document.getElementById("variacoes_anual_input") as HTMLInputElement;
+            const mesInput = document.getElementById("variacoes_saldo_mes_input") as HTMLInputElement;
+            const atualInput = document.getElementById("variacoes_saldo_atual_input") as HTMLInputElement;
+            const lucroEl = document.getElementById("variacoes_lucro");
+            const eyeIcon = document.getElementById("variacoes_eye_icon");
+
+            const estaOculto = anualInput?.value === "****";
+
+            if (estaOculto) {
+              // MOSTRAR VALORES EM DINHEIRO
+              if (anualInput) anualInput.value = localStorage.getItem("variacoes_anual") || "12.95";
+              if (mesInput) mesInput.value = localStorage.getItem("variacoes_saldo_mes") || "8.81";
+              if (atualInput) atualInput.value = localStorage.getItem("gestao_saldo_interno") || "0.00";
+              if (lucroEl) lucroEl.textContent = localStorage.getItem("variacoes_lucro_valor") || "+0.00";
+
+              if (eyeIcon) {
+                eyeIcon.innerHTML = `
+                  <path d="M2 12C2 12 5.5 5 12 5C18.5 5 22 12 22 12C22 12 18.5 19 12 19C5.5 19 2 12 2 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
+                `;
+              }
+            } else {
+              // OCULTAR VALORES EM DINHEIRO (ANUAL, MÊS, ATUAL E LUCRO)
+              if (anualInput) anualInput.value = "****";
+              if (mesInput) mesInput.value = "****";
+              if (atualInput) atualInput.value = "****";
+              if (lucroEl) lucroEl.textContent = "****";
+
+              if (eyeIcon) {
+                eyeIcon.innerHTML = `
+                  <path d="M2 12C2 12 5.5 5 12 5C18.5 5 22 12 22 12C22 12 18.5 19 12 19C5.5 19 2 12 2 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
+                  <path d="M4 4L20 20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                `;
+              }
+            }
+          }}
+          className="text-cyan-300 hover:text-white transition-colors flex items-center justify-center"
+          title="Mostrar ou ocultar saldos"
+          aria-label="Mostrar ou ocultar saldos"
+        >
+          <svg
+            id="variacoes_eye_icon"
+            width="22"
+            height="22"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M2 12C2 12 5.5 5 12 5C18.5 5 22 12 22 12C22 12 18.5 19 12 19C5.5 19 2 12 2 12Z"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <circle
+              cx="12"
+              cy="12"
+              r="3"
+              stroke="currentColor"
+              strokeWidth="2"
+            />
+          </svg>
+        </button>
+      </div>
+
+      <div className="flex-1 flex flex-col justify-between">
+        <div className="grid grid-cols-2 gap-2 w-full">
+
+          {/* Coluna 1: ANUAL, SALDO DO MÊS e SALDO ATUAL empilhados */}
+          <div className="flex flex-col gap-2">
+
+            <div className="flex flex-col items-center">
+              <span style={{ fontSize: "18px" }} className="text-cyan-300 font-bold uppercase tracking-wider mb-1 text-center">ANUAL</span>
+              <div className="w-full bg-black/80 border border-[#4a4a4a] rounded-xl p-2 flex items-center justify-center text-center shadow">
+                <input 
+                  id="variacoes_anual_input"
+                  type="text" 
+                  defaultValue={localStorage.getItem("variacoes_anual") || "12.95"}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    localStorage.setItem("variacoes_anual", val);
+
+                    const anual = parseFloat(val.replace(",", ".")) || 0;
+                    const mes = parseFloat((localStorage.getItem("variacoes_saldo_mes") || "8.81").replace(",", ".")) || 0;
+                    const atual = parseFloat((localStorage.getItem("gestao_saldo_interno") || "0").replace(",", ".")) || 0;
+                    
+                    const pctAnual = anual !== 0 ? ((atual - anual) / anual) * 100 : 0;
+                    const pctMes = mes !== 0 ? ((atual - mes) / mes) * 100 : 0;
+                    const lucro = Number((atual - mes).toFixed(2));
+
+                    const strPctAnual = `${pctAnual >= 0 ? "+" : ""}${pctAnual.toFixed(2)}%`;
+                    const strPctMes = `${pctMes >= 0 ? "+" : ""}${pctMes.toFixed(2)}%`;
+                    const strLucro = `${lucro >= 0 ? "+" : ""}${lucro.toFixed(2)}`;
+
+                    localStorage.setItem("variacoes_pct_anual", strPctAnual);
+                    localStorage.setItem("variacoes_pct_mes", strPctMes);
+                    localStorage.setItem("variacoes_lucro_valor", strLucro);
+                    
+                    const anualEl = document.getElementById("variacoes_anual_pct");
+                    const mesEl = document.getElementById("variacoes_mes_pct");
+                    const lucroEl = document.getElementById("variacoes_lucro");
+                    
+                    if (anualEl) {
+                      anualEl.textContent = strPctAnual;
+                      anualEl.className = `font-bold tracking-wide ${pctAnual >= 0 ? "text-emerald-600" : "text-red-600"}`;
+                    }
+
+                    if (mesEl) {
+                      mesEl.textContent = strPctMes;
+                      mesEl.className = `font-bold tracking-wide ${pctMes >= 0 ? "text-emerald-600" : "text-red-600"}`;
+                    }
+
+                    if (lucroEl && (document.getElementById("variacoes_anual_input") as HTMLInputElement)?.value !== "****") {
+                      lucroEl.textContent = strLucro;
+                      lucroEl.className = `font-bold tracking-wide ${lucro >= 0 ? "text-emerald-600" : "text-red-600"}`;
+                    }
+                  }}
+                  className="w-full bg-transparent text-emerald-600 font-bold text-center focus:outline-none tabular-nums" 
+                  style={{ fontSize: "24px" }} 
+                  placeholder="0.00" 
+                />
               </div>
             </div>
 
-   <div className="rounded-2xl border border-[#4a4a4a] bg-black p-5 flex flex-col h-full justify-between shadow-lg font-mono">
+            <div className="flex flex-col items-center">
+              <span style={{ fontSize: "18px" }} className="text-cyan-300 font-bold uppercase tracking-wider mb-1 text-center">SALDO DO MÊS</span>
+              <div className="w-full bg-black/80 border border-[#4a4a4a] rounded-xl p-2 flex items-center justify-center text-center shadow">
+                <input 
+                  id="variacoes_saldo_mes_input"
+                  type="text" 
+                  defaultValue={localStorage.getItem("variacoes_saldo_mes") || "8.81"}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    localStorage.setItem("variacoes_saldo_mes", val);
+
+                    const anual = parseFloat((localStorage.getItem("variacoes_anual") || "12.95").replace(",", ".")) || 0;
+                    const mes = parseFloat(val.replace(",", ".")) || 0;
+                    const atual = parseFloat((localStorage.getItem("gestao_saldo_interno") || "0").replace(",", ".")) || 0;
+                    
+                    const pctAnual = anual !== 0 ? ((atual - anual) / anual) * 100 : 0;
+                    const pctMes = mes !== 0 ? ((atual - mes) / mes) * 100 : 0;
+                    const lucro = Number((atual - mes).toFixed(2));
+
+                    const strPctAnual = `${pctAnual >= 0 ? "+" : ""}${pctAnual.toFixed(2)}%`;
+                    const strPctMes = `${pctMes >= 0 ? "+" : ""}${pctMes.toFixed(2)}%`;
+                    const strLucro = `${lucro >= 0 ? "+" : ""}${lucro.toFixed(2)}`;
+
+                    localStorage.setItem("variacoes_pct_anual", strPctAnual);
+                    localStorage.setItem("variacoes_pct_mes", strPctMes);
+                    localStorage.setItem("variacoes_lucro_valor", strLucro);
+                    
+                    const anualEl = document.getElementById("variacoes_anual_pct");
+                    const mesEl = document.getElementById("variacoes_mes_pct");
+                    const lucroEl = document.getElementById("variacoes_lucro");
+                    
+                    if (anualEl) {
+                      anualEl.textContent = strPctAnual;
+                      anualEl.className = `font-bold tracking-wide ${pctAnual >= 0 ? "text-emerald-600" : "text-red-600"}`;
+                    }
+
+                    if (mesEl) {
+                      mesEl.textContent = strPctMes;
+                      mesEl.className = `font-bold tracking-wide ${pctMes >= 0 ? "text-emerald-600" : "text-red-600"}`;
+                    }
+
+                    if (lucroEl && (document.getElementById("variacoes_anual_input") as HTMLInputElement)?.value !== "****") {
+                      lucroEl.textContent = strLucro;
+                      lucroEl.className = `font-bold tracking-wide ${lucro >= 0 ? "text-emerald-600" : "text-red-600"}`;
+                    }
+                  }}
+                  className="w-full bg-transparent text-emerald-600 font-bold text-center focus:outline-none tabular-nums" 
+                  style={{ fontSize: "24px" }} 
+                  placeholder="0.00" 
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col items-center">
+              <span style={{ fontSize: "18px" }} className="text-cyan-300 font-bold uppercase tracking-wider mb-1 text-center">SALDO ATUAL</span>
+              <div className="w-full bg-black/80 border border-[#4a4a4a] rounded-xl p-2 flex items-center justify-center text-center shadow">
+                <input 
+                  id="variacoes_saldo_atual_input"
+                  type="text" 
+                  defaultValue={localStorage.getItem("gestao_saldo_interno") || "0.00"}
+                  readOnly
+                  className="w-full bg-transparent text-emerald-600 font-bold text-center focus:outline-none tabular-nums cursor-default" 
+                  style={{ fontSize: "24px" }} 
+                  placeholder="0.00" 
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Coluna 2: Resultados das porcentagens e LUCRO */}
+          <div className="flex flex-col gap-2">
+
+            {/* Variação Anual (%) */}
+            <div className="flex flex-col items-center">
+              <span style={{ fontSize: "18px" }} className="opacity-0 mb-1 select-none pointer-events-none">&nbsp;</span>
+              <div className="w-full bg-black/80 border border-[#4a4a4a] rounded-xl p-2 flex items-center justify-center text-center shadow min-h-[46px]">
+                <span 
+                  id="variacoes_anual_pct"
+                  style={{ fontSize: "24px" }} 
+                  className="font-bold tracking-wide text-red-600"
+                >
+                  {(() => {
+                    const anual = parseFloat((localStorage.getItem("variacoes_anual") || "12.95").replace(",", ".")) || 0;
+                    const atual = parseFloat((localStorage.getItem("gestao_saldo_interno") || "0").replace(",", ".")) || 0;
+                    const pct = anual !== 0 ? ((atual - anual) / anual) * 100 : 0;
+                    const res = `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`;
+                    localStorage.setItem("variacoes_pct_anual", res);
+                    return res;
+                  })()}
+                </span>
+              </div>
+            </div>
+
+            {/* Variação do Mês (%) */}
+            <div className="flex flex-col items-center">
+              <span style={{ fontSize: "18px" }} className="opacity-0 mb-1 select-none pointer-events-none">&nbsp;</span>
+              <div className="w-full bg-black/80 border border-[#4a4a4a] rounded-xl p-2 flex items-center justify-center text-center shadow min-h-[46px]">
+                <span 
+                  id="variacoes_mes_pct"
+                  style={{ fontSize: "24px" }} 
+                  className="font-bold tracking-wide text-emerald-600"
+                >
+                  {(() => {
+                    const mes = parseFloat((localStorage.getItem("variacoes_saldo_mes") || "8.81").replace(",", ".")) || 0;
+                    const atual = parseFloat((localStorage.getItem("gestao_saldo_interno") || "0").replace(",", ".")) || 0;
+                    const pctMes = mes !== 0 ? ((atual - mes) / mes) * 100 : 0;
+                    const res = `${pctMes >= 0 ? "+" : ""}${pctMes.toFixed(2)}%`;
+                    localStorage.setItem("variacoes_pct_mes", res);
+                    return res;
+                  })()}
+                </span>
+              </div>
+            </div>
+
+            {/* LUCRO */}
+            <div className="flex flex-col items-center">
+              <span style={{ fontSize: "18px" }} className="text-cyan-300 font-bold uppercase tracking-wider mb-1 text-center">LUCRO</span>
+              <div className="w-full bg-black/80 border border-[#4a4a4a] rounded-xl p-2 flex items-center justify-center text-center shadow min-h-[46px]">
+                <span 
+                  id="variacoes_lucro"
+                  style={{ fontSize: "24px" }} 
+                  className="font-bold tracking-wide text-emerald-600"
+                >
+                  {(() => {
+                    const atual = parseFloat((localStorage.getItem("gestao_saldo_interno") || "0").replace(",", ".")) || 0;
+                    const mes = parseFloat((localStorage.getItem("variacoes_saldo_mes") || "8.81").replace(",", ".")) || 0;
+                    const diff = Number((atual - mes).toFixed(2));
+                    const res = `${diff >= 0 ? "+" : ""}${diff.toFixed(2)}`;
+                    localStorage.setItem("variacoes_lucro_valor", res);
+                    return res;
+                  })()}
+                </span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+  </div>
+        <div className="rounded-2xl border border-[#4a4a4a] bg-black p-5 flex flex-col h-full justify-between shadow-lg font-mono">
   <div className="flex flex-col space-y-4">
     <div>
       <span
