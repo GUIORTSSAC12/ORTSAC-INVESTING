@@ -1755,6 +1755,17 @@ function MacroVolatilityCard({
     null,
   );
 
+  // Função para tocar o som do MSN sem precisar de import interno
+  const playSound = () => {
+    try {
+      if (localStorage.getItem("SOUND_KEY") === "0") return;
+
+      const audio = new Audio("./src/assets/MSN.mp3");
+      audio.volume = 1.0;
+      audio.play().catch(() => {});
+    } catch (e) {}
+  };
+
   // Estados locais para os Fundos e Topos para garantir reatividade instantânea
   const [valoresF, setValoresF] = useState<string[]>([
     localStorage.getItem("regioes_F1") || "",
@@ -1779,7 +1790,7 @@ function MacroVolatilityCard({
   const valorMenos70 =
     !isNaN(numT1) && numT1 > 0 ? (numT1 * (1 - 0.007)).toFixed(3) : "0.000";
 
-  // Função central de ordenação e salvamento
+  // Função central de ordenação, validação dos 0.25% e salvamento
   const handleRegiaoChange = (
     tipoPrefix: "T" | "F",
     indexAlterado: number,
@@ -1794,17 +1805,35 @@ function MacroVolatilityCard({
         .map((v) => ({ texto: v, num: parseFloat(v.replace(",", ".")) }))
         .filter((item) => !isNaN(item.num) && item.num > 0);
 
-      // Fundo (F): Maior para o menor
+      // Fundo (F): Maior para o menor por padrão (escadinha)
       comValor.sort((a, b) => b.num - a.num);
 
-      const final = [
+      let final = [
         comValor[0]?.texto || "",
         comValor[1]?.texto || "",
         comValor[2]?.texto || "",
         comValor[3]?.texto || "",
       ];
 
-      // Se ainda houver campos em branco ou parciais sendo digitados no campo atual, garante que o usuário consiga digitar
+      // Regra de Validação de Tolerância de 0.25%
+      const valF1 = parseFloat((final[0] || "").replace(",", "."));
+      const valF2 = parseFloat((final[1] || "").replace(",", "."));
+
+      if (!isNaN(valF1) && !isNaN(valF2) && valF1 > 0 && valF2 > 0) {
+        const limiteTolerancia = valF1 * (1 - 0.0025); // Limite de -0.25%
+
+        if (valF2 >= limiteTolerancia && valF2 < valF1) {
+          // Troca as posições para priorizar o fundo menor no F1
+          const temp = final[0];
+          final[0] = final[1];
+          final[1] = temp;
+
+          // Dispara o alerta sonoro do MSN ao ajustar a região
+          playSound();
+        }
+      }
+
+      // Se ainda houver campos em branco ou parciais sendo digitados no campo atual
       if (novoTexto !== "" && !final.includes(novoTexto)) {
         final[indexAlterado] = novoTexto;
       }
@@ -1819,7 +1848,7 @@ function MacroVolatilityCard({
         .map((v) => ({ texto: v, num: parseFloat(v.replace(",", ".")) }))
         .filter((item) => !isNaN(item.num) && item.num > 0);
 
-      // Topo (T): Menor para o maior (ex: 209 vai para T1 e 210 vai para T2)
+      // Topo (T): Menor para o maior
       comValor.sort((a, b) => a.num - b.num);
 
       const final = [
