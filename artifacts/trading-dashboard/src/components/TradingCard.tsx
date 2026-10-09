@@ -23,7 +23,7 @@ export interface TradeStrategy {
 const INITIAL_STOP_PCT = 0.2; 
 const STOP_EXTRA_POINTS = 0.010; 
 const INITIAL_GAIN_PCT = 0.6; 
-const ZONE_PCT = 0.77; 
+const ZONE_PCT = 0.70; 
 const PROTECTION_TRIGGER_PCT = 0.3; 
 const PROTECTED_STOP_PCT = 0.1; 
 
@@ -410,13 +410,13 @@ export default function TradingCard({
                   </span>
                 </div>
 
-                {/* ZONE (-0,77%) ABAIXO DO GAIN PARA VENDA (EM VERMELHO) */}
+                {/* ZONE (-0.70%) ABAIXO DO GAIN PARA VENDA (EM VERMELHO) */}
                 <div className="flex justify-between items-center px-1 py-0.5">
                   <span
                     style={{ fontSize: fontSizeConfig.labelPx }}
                     className="text-red-500 font-bold uppercase tracking-wider"
                   >
-                    ZONE (-0,77%)
+                    ZONE (-0.70%)
                   </span>
                   <span
                     style={{ fontSize: fontSizeConfig.valuePx }}
@@ -428,13 +428,13 @@ export default function TradingCard({
               </>
             ) : (
               <>
-                {/* ZONE (+0,77%) ACIMA DO GAIN PARA COMPRA (EM VERMELHO) */}
+                {/* ZONE (+0.70%) ACIMA DO GAIN PARA COMPRA (EM VERMELHO) */}
                 <div className="flex justify-between items-center px-1 py-0.5">
                   <span
                     style={{ fontSize: fontSizeConfig.labelPx }}
                     className="text-red-500 font-bold uppercase tracking-wider"
                   >
-                    ZONE (+0,77%)
+                    ZONE (+0.70%)
                   </span>
                   <span
                     style={{ fontSize: fontSizeConfig.valuePx }}

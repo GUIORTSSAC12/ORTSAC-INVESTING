@@ -1650,23 +1650,15 @@ function Index({ onLogout }: { onLogout: () => void }) {
                     window.dispatchEvent(new Event("storage"));
                   }}
                   type="button"
-                  className="flex items-center gap-2 text-cyan-300 hover:text-white transition-colors bg-black/50 border border-[#4a4a4a] px-3 py-1.5 rounded-xl focus:outline-none shadow"
+                  className="text-cyan-300 hover:text-white transition-colors flex items-center justify-center focus:outline-none"
+                  title="Mostrar ou ocultar saldos"
+                  aria-label="Mostrar ou ocultar saldos"
                 >
-                  {/* ADICIONE ESTE BLOCO AQUI DENTRO DO BOTÃO */}
                   {localStorage.getItem("gestao_saldo_oculto") === "true" ? (
-                    <EyeOff size={20} />
+                    <EyeOff size={22} />
                   ) : (
-                    <Eye size={20} />
+                    <Eye size={22} />
                   )}
-
-                  <span
-                    style={{ fontSize: "16px" }}
-                    className="font-bold tracking-wider"
-                  >
-                    {localStorage.getItem("gestao_saldo_oculto") === "true"
-                      ? "MOSTRAR SALDO"
-                      : "OCULTAR SALDO"}
-                  </span>
                 </button>
               </div>
 
@@ -1777,6 +1769,15 @@ function MacroVolatilityCard({
     localStorage.getItem("regioes_T3") || "",
     localStorage.getItem("regioes_T4") || "",
   ]);
+
+  // Cálculos dinâmicos automáticos baseados no F1 e T1
+  const numF1 = parseFloat((valoresF[0] || "").replace(",", "."));
+  const numT1 = parseFloat((valoresT[0] || "").replace(",", "."));
+
+  const valorMais70 =
+    !isNaN(numF1) && numF1 > 0 ? (numF1 * 1.007).toFixed(3) : "0.000";
+  const valorMenos70 =
+    !isNaN(numT1) && numT1 > 0 ? (numT1 * (1 - 0.007)).toFixed(3) : "0.000";
 
   // Função central de ordenação e salvamento
   const handleRegiaoChange = (
@@ -1984,8 +1985,8 @@ function MacroVolatilityCard({
   const formatChange = (val: number) =>
     `${val > 0 ? "+" : ""}${val.toFixed(2)}%`;
 
-  const colunaF = ["F1", "F2", "F3", "F4"];
-  const colunaT = ["T1", "T2", "T3", "T4"];
+  const colunaF = ["F1", "F2", "F3"];
+  const colunaT = ["T1", "T2", "T3"];
 
   useEffect(() => {
     const sinalSalvo = localStorage.getItem("scanner_sinal");
@@ -2080,7 +2081,7 @@ function MacroVolatilityCard({
         </div>
       </div>
 
-      {/* Coluna F1 a F4 */}
+      {/* Coluna F1 a F3 + CAMPO AUTOMÁTICO +70% */}
       <div className="flex flex-col gap-2 w-[283px] shrink-0">
         {colunaF.map((item, index) => {
           const isSelected = selectedValidation === item;
@@ -2115,9 +2116,22 @@ function MacroVolatilityCard({
             </div>
           );
         })}
+
+        {/* CAMPO +70% COM LARGURA IDENTICA AOS BOTÕES F */}
+        <div className="group flex h-14 w-full items-center justify-between rounded-xl border border-blue-600 bg-blue-600/20 px-3 transition-all shadow-md hover:bg-blue-600/30">
+          <div
+            style={{ fontSize: "14px" }}
+            className="h-10 w-[58px] rounded-lg font-bold flex items-center justify-center bg-blue-600/40 text-blue-300 group-hover:bg-blue-600 group-hover:text-white transition-colors shrink-0 select-none cursor-default text-[13px]"
+          >
+            +70%
+          </div>
+          <div className="w-44 bg-[#12141c] border border-blue-600/50 rounded px-2 py-1 text-[24px] font-mono font-bold text-blue-200 text-right select-all">
+            {valorMais70}
+          </div>
+        </div>
       </div>
 
-      {/* Coluna T1 a T4 */}
+      {/* Coluna T1 a T3 + CAMPO AUTOMÁTICO -70% */}
       <div className="flex flex-col gap-2 w-[310px] shrink-0">
         {colunaT.map((item, index) => {
           const isSelected = selectedValidation === item;
@@ -2152,6 +2166,19 @@ function MacroVolatilityCard({
             </div>
           );
         })}
+
+        {/* CAMPO -70% COM LARGURA IDENTICA AOS BOTÕES T */}
+        <div className="group flex h-14 w-full items-center justify-between rounded-xl border border-red-600 bg-red-600/20 px-3 transition-all shadow-md hover:bg-red-600/30">
+          <div
+            style={{ fontSize: "14px" }}
+            className="h-10 w-[58px] rounded-lg font-bold flex items-center justify-center bg-red-600/40 text-red-300 group-hover:bg-red-600 group-hover:text-white transition-colors shrink-0 select-none cursor-default text-[13px]"
+          >
+            -70%
+          </div>
+          <div className="w-44 bg-[#12141c] border border-red-600/50 rounded px-2 py-1 text-[24px] font-mono font-bold text-red-200 text-right select-all">
+            {valorMenos70}
+          </div>
+        </div>
       </div>
     </div>
   );
