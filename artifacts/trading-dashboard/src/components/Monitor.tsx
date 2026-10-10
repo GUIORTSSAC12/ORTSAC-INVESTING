@@ -42,6 +42,16 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MonitorProp
 
   const [tempoRestante4H, setTempoRestante4H] = useState<string>("00:00:00");
 
+  // Estado para alternar entre 4h e 5h
+  const [horasCandle, setHorasCandle] = useState<number>(4);
+
+  // Armazena o momento exato (timestamp) em que o candle atual vai fechar
+  const [timestampFechamento, setTimestampFechamento] = useState<number>(() => {
+    const agora = Date.now();
+    const duracaoMs = 4 * 60 * 60 * 1000;
+    return Math.ceil(agora / duracaoMs) * duracaoMs;
+  });
+
   const [modoArmado, setModoArmado] = useState<"TOPO" | "FUNDO" | null>(() => {
     try {
       return (localStorage.getItem("monitor_modo_armado") as any) || null;
@@ -68,13 +78,47 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MonitorProp
     } catch (e) {}
   };
 
-  // Cronômetro apenas visual (mantido para você acompanhar na tela)
+  // Função para alternar o modo e ajustar o tempo restante somando/subtraindo exatamente 1 hora
+  const handleAlternarHoras = () => {
+    const novoHorario = horasCandle === 4 ? 5 : 4;
+    const diferencaHorasMs = 1 * 60 * 60 * 1000;
+
+    setHorasCandle(novoHorario);
+
+    setTimestampFechamento(prev => {
+      const agora = Date.now();
+      const novoFechamento = novoHorario === 5 ? prev + diferencaHorasMs : prev - diferencaHorasMs;
+      
+      if (novoFechamento <= agora) {
+        return Math.ceil(agora / (novoHorario * 60 * 60 * 1000)) * (novoHorario * 60 * 60 * 1000);
+      }
+      return novoFechamento;
+    });
+  };
+
+ // Cronômetro inteligente baseado na hora de Londres e na regra do meio-dia
   useEffect(() => {
-    const calcularTempo4H = () => {
+    const calcularTempoRestante = () => {
       const agora = new Date();
+      
+      // Pega a hora atual em Londres com base no modo ativo (UTC+1 para 4H, UTC 0 para 5H)
+      const offsetLondres = horasCandle === 4 ? 1 : 0;
+      const horaLondres = (agora.getUTCHours() + offsetLondres) % 24;
+      
+      const minUTC = agora.getUTCMinutes();
+      const segUTC = agora.getUTCSeconds();
+      const segundosAtuaisNaHora = minUTC * 60 + segUTC;
+
+      // Regra exata: Se estiver no modo 5H E o relógio de Londres for meio-dia (12), o candle é de 4 horas!
+      let duracaoCandleHoras = horasCandle;
+      if (horasCandle === 5 && horaLondres === 12) {
+        duracaoCandleHoras = 4;
+      }
+
+      // Calcula o próximo fechamento com base nessa duração dinâmica
+      const duracaoMs = duracaoCandleHoras * 60 * 60 * 1000;
       const utcMs = agora.getTime();
-      const quatroHorasMs = 4 * 60 * 60 * 1000;
-      const proximoFechamentoMs = Math.ceil(utcMs / quatroHorasMs) * quatroHorasMs;
+      const proximoFechamentoMs = Math.ceil(utcMs / duracaoMs) * duracaoMs;
       const diferencaMs = proximoFechamentoMs - utcMs;
 
       if (diferencaMs <= 0) {
@@ -92,11 +136,10 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MonitorProp
       );
     };
 
-    calcularTempo4H();
-    const intervalCronometro = setInterval(calcularTempo4H, 1000);
+    calcularTempoRestante();
+    const intervalCronometro = setInterval(calcularTempoRestante, 1000);
     return () => clearInterval(intervalCronometro);
-  }, []);
-
+  }, [horasCandle]);
   // Observador inteligente do localStorage quando o monitor está armado
   useEffect(() => {
     if (!modoArmado) return;
@@ -315,14 +358,26 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MonitorProp
           </div>
         </div>
 
+        {/* Bloco do Cronômetro com o botão limpo (ex: 4H / 5H) e efeito hover azul */}
         <div className="flex-1 flex flex-col">
-          <div className="rounded-xl border border-[#4a4a4a] p-3 flex-1 bg-black flex flex-col justify-center items-center">
-            <span className="font-semibold text-cyan-300 text-[16px] tracking-wide mb-1">
-              4H FECHA EM
+          <div className="rounded-xl border border-[#4a4a4a] p-3 flex-1 bg-black flex flex-col justify-center items-center relative">
+            
+            <button
+              onClick={handleAlternarHoras}
+              className="absolute top-2 right-2 text-[11px] font-mono font-bold px-2.5 py-0.5 rounded border border-blue-600 bg-blue-600/20 text-blue-400 hover:bg-blue-600 hover:text-white hover:border-blue-500 transition-all cursor-pointer shadow"
+              title="Alternar entre candle de 4h e 5h"
+            >
+              {horasCandle}H
+            </button>
+
+           <span className="font-semibold text-cyan-300 text-[16px] tracking-wide mb-1">
+              {horasCandle}H FECHA EM
             </span>
-            <span className="font-extrabold text-white text-[40px] tabular-nums leading-tight tracking-wider" title="Tempo Restante para Fechamento 4H">
+            {/* ATENÇÃO AQUI: Removemos o atributo title="..." desta linha */}
+            <span className="font-extrabold text-white text-[40px] tabular-nums leading-tight tracking-wider">
               {tempoRestante4H}
             </span>
+
           </div>
         </div>
 
