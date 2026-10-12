@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import msnSound from "../assets/MSN.mp3";
 
 interface Candle4H {
@@ -41,16 +41,7 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MonitorProp
   });
 
   const [tempoRestante4H, setTempoRestante4H] = useState<string>("00:00:00");
-
-  // Estado para alternar entre 4h e 5h
   const [horasCandle, setHorasCandle] = useState<number>(4);
-
-  // Armazena o momento exato (timestamp) em que o candle atual vai fechar
-  const [timestampFechamento, setTimestampFechamento] = useState<number>(() => {
-    const agora = Date.now();
-    const duracaoMs = 4 * 60 * 60 * 1000;
-    return Math.ceil(agora / duracaoMs) * duracaoMs;
-  });
 
   const [modoArmado, setModoArmado] = useState<"TOPO" | "FUNDO" | null>(() => {
     try {
@@ -68,54 +59,37 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MonitorProp
     }
   });
 
+  // Usamos ref para manter o valor atualizado sem disparar re-renderizações indesejadas no timer
+  const valorEntradaRef = useRef(valorEntrada);
+  useEffect(() => {
+    valorEntradaRef.current = valorEntrada;
+  }, [valorEntrada]);
+
   const tocarAlerta = () => {
     try {
       if (localStorage.getItem("SOUND_KEY") === "0") return;
-
       const audio = new Audio(msnSound);
       audio.volume = 1.0;
       audio.play().catch(() => {});
     } catch (e) {}
   };
 
-  // Função para alternar o modo e ajustar o tempo restante somando/subtraindo exatamente 1 hora
   const handleAlternarHoras = () => {
-    const novoHorario = horasCandle === 4 ? 5 : 4;
-    const diferencaHorasMs = 1 * 60 * 60 * 1000;
-
-    setHorasCandle(novoHorario);
-
-    setTimestampFechamento(prev => {
-      const agora = Date.now();
-      const novoFechamento = novoHorario === 5 ? prev + diferencaHorasMs : prev - diferencaHorasMs;
-      
-      if (novoFechamento <= agora) {
-        return Math.ceil(agora / (novoHorario * 60 * 60 * 1000)) * (novoHorario * 60 * 60 * 1000);
-      }
-      return novoFechamento;
-    });
+    setHorasCandle(prev => (prev === 4 ? 5 : 4));
   };
 
- // Cronômetro inteligente baseado na hora de Londres e na regra do meio-dia
+  // Cronômetro otimizado
   useEffect(() => {
     const calcularTempoRestante = () => {
       const agora = new Date();
-      
-      // Pega a hora atual em Londres com base no modo ativo (UTC+1 para 4H, UTC 0 para 5H)
       const offsetLondres = horasCandle === 4 ? 1 : 0;
       const horaLondres = (agora.getUTCHours() + offsetLondres) % 24;
-      
-      const minUTC = agora.getUTCMinutes();
-      const segUTC = agora.getUTCSeconds();
-      const segundosAtuaisNaHora = minUTC * 60 + segUTC;
 
-      // Regra exata: Se estiver no modo 5H E o relógio de Londres for meio-dia (12), o candle é de 4 horas!
       let duracaoCandleHoras = horasCandle;
       if (horasCandle === 5 && horaLondres === 12) {
         duracaoCandleHoras = 4;
       }
 
-      // Calcula o próximo fechamento com base nessa duração dinâmica
       const duracaoMs = duracaoCandleHoras * 60 * 60 * 1000;
       const utcMs = agora.getTime();
       const proximoFechamentoMs = Math.ceil(utcMs / duracaoMs) * duracaoMs;
@@ -140,34 +114,16 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MonitorProp
     const intervalCronometro = setInterval(calcularTempoRestante, 1000);
     return () => clearInterval(intervalCronometro);
   }, [horasCandle]);
-  // Observador inteligente do localStorage quando o monitor está armado
-  useEffect(() => {
-    if (!modoArmado) return;
-
-    const intervalVerificacaoStorage = setInterval(() => {
-      try {
-        const valorStorageAtual = localStorage.getItem("ultimo_4h_fechamento");
-        
-        if (valorStorageAtual && valorStorageAtual !== valorReferenciaFechamento) {
-          processarVerificacaoFechamento(valorStorageAtual);
-        }
-      } catch (err) {}
-    }, 2000);
-
-    return () => clearInterval(intervalVerificacaoStorage);
-  }, [modoArmado, valorReferenciaFechamento, valorEntrada]);
 
   const processarVerificacaoFechamento = (fechamentoAtualStr: string) => {
     if (!fechamentoAtualStr) return;
 
-    const valorFinalFechamento = fechamentoAtualStr;
-
-    setValorSaida(valorFinalFechamento);
-    localStorage.setItem("monitor_saida_manual", valorFinalFechamento);
+    setValorSaida(fechamentoAtualStr);
+    localStorage.setItem("monitor_saida_manual", fechamentoAtualStr);
 
     if (modoArmado) {
-      const entradaNum = parseFloat(valorEntrada.replace(",", ".")) || 0;
-      const saidaNum = parseFloat(valorFinalFechamento.replace(",", ".")) || 0;
+      const entradaNum = parseFloat(valorEntradaRef.current.replace(",", ".")) || 0;
+      const saidaNum = parseFloat(fechamentoAtualStr.replace(",", ".")) || 0;
 
       if (modoArmado === "TOPO") {
         if (saidaNum > entradaNum) {
@@ -195,6 +151,22 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MonitorProp
       localStorage.removeItem("monitor_ref_fechamento");
     }
   };
+
+  // Observador de storage otimizado sem dependência direta de valorEntrada
+  useEffect(() => {
+    if (!modoArmado) return;
+
+    const intervalVerificacaoStorage = setInterval(() => {
+      try {
+        const valorStorageAtual = localStorage.getItem("ultimo_4h_fechamento");
+        if (valorStorageAtual && valorStorageAtual !== valorReferenciaFechamento) {
+          processarVerificacaoFechamento(valorStorageAtual);
+        }
+      } catch (err) {}
+    }, 2000);
+
+    return () => clearInterval(intervalVerificacaoStorage);
+  }, [modoArmado, valorReferenciaFechamento]);
 
   const atualizarValorEntrada = (novoNum: number) => {
     const formatado = novoNum.toFixed(3);
@@ -225,7 +197,6 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MonitorProp
   const handleArmarTopo = () => {
     try {
       const valorStorage = localStorage.getItem("ultimo_4h_fechamento") || (candles4h.at(-2)?.close !== undefined ? String(candles4h.at(-2)?.close) : "0.000");
-      
       setValorReferenciaFechamento(valorStorage);
       setModoArmado("TOPO");
       localStorage.setItem("monitor_modo_armado", "TOPO");
@@ -236,7 +207,6 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MonitorProp
   const handleArmarFundo = () => {
     try {
       const valorStorage = localStorage.getItem("ultimo_4h_fechamento") || (candles4h.at(-2)?.close !== undefined ? String(candles4h.at(-2)?.close) : "0.000");
-      
       setValorReferenciaFechamento(valorStorage);
       setModoArmado("FUNDO");
       localStorage.setItem("monitor_modo_armado", "FUNDO");
@@ -274,7 +244,6 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MonitorProp
   return (
     <div className="rounded-2xl border border-[#4a4a4a] bg-black p-4 shadow-sm h-[360px] w-full flex flex-col justify-between font-mono">
       <div className="flex flex-col justify-between h-full gap-3">
-        
         <div className="flex-[1.5] flex flex-col">
           <div className="mb-1 flex items-center justify-between">
             <span className="text-base font-semibold text-cyan-300">
@@ -292,7 +261,6 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MonitorProp
               >
                 F
               </button>
-
               <button
                 onClick={handleArmarTopo}
                 className={`text-[11px] font-mono px-2 py-1 rounded border font-bold shadow cursor-pointer transition-all ${
@@ -304,7 +272,6 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MonitorProp
               >
                 T
               </button>
-
               <button
                 onClick={handleDecrementar}
                 className="text-[11px] font-mono px-2.5 py-1 rounded border border-red-600 bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white hover:border-red-500 transition-all font-bold shadow cursor-pointer"
@@ -330,7 +297,6 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MonitorProp
           </div>
           
           <div className="rounded-xl border border-[#4a4a4a] p-3 flex-1 bg-black flex flex-col justify-center gap-3 items-center">
-            
             <div className="w-full max-w-[280px] flex flex-col gap-2">
               <div className="flex items-center justify-between rounded-lg bg-[#1e3a8a]/40 border border-[#2563eb] px-3 py-2">
                 <span className="font-bold text-blue-400 text-[18px] tracking-wide">ENTRADA</span>
@@ -354,14 +320,11 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MonitorProp
                 </div>
               </div>
             </div>
-
           </div>
         </div>
 
-        {/* Bloco do Cronômetro com o botão limpo (ex: 4H / 5H) e efeito hover azul */}
         <div className="flex-1 flex flex-col">
           <div className="rounded-xl border border-[#4a4a4a] p-3 flex-1 bg-black flex flex-col justify-center items-center relative">
-            
             <button
               onClick={handleAlternarHoras}
               className="absolute top-2 right-2 text-[11px] font-mono font-bold px-2.5 py-0.5 rounded border border-blue-600 bg-blue-600/20 text-blue-400 hover:bg-blue-600 hover:text-white hover:border-blue-500 transition-all cursor-pointer shadow"
@@ -370,17 +333,14 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MonitorProp
               {horasCandle}H
             </button>
 
-           <span className="font-semibold text-cyan-300 text-[16px] tracking-wide mb-1">
+            <span className="font-semibold text-cyan-300 text-[16px] tracking-wide mb-1">
               {horasCandle}H FECHA EM
             </span>
-            {/* ATENÇÃO AQUI: Removemos o atributo title="..." desta linha */}
             <span className="font-extrabold text-white text-[40px] tabular-nums leading-tight tracking-wider">
               {tempoRestante4H}
             </span>
-
           </div>
         </div>
-
       </div>
     </div>
   );
