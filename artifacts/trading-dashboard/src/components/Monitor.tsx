@@ -78,22 +78,61 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MonitorProp
     setHorasCandle(prev => (prev === 4 ? 5 : 4));
   };
 
-  // Cronômetro otimizado
+  // Cronômetro inteligente sincronizado com a regra de fuso (UTC 0 = Pares, UTC +1 = Ímpares)
   useEffect(() => {
     const calcularTempoRestante = () => {
       const agora = new Date();
-      const offsetLondres = horasCandle === 4 ? 1 : 0;
-      const horaLondres = (agora.getUTCHours() + offsetLondres) % 24;
+      
+      // Pega o fuso configurado no topo (0 para UTC 0, 1 para UTC +1)
+      const offsetLondres = (() => {
+        try {
+          const salvo = localStorage.getItem("utc_offset");
+          return salvo !== null ? Number(salvo) : 1;
+        } catch {
+          return 1;
+        }
+      })();
 
-      let duracaoCandleHoras = horasCandle;
-      if (horasCandle === 5 && horaLondres === 12) {
-        duracaoCandleHoras = 4;
+      const utcMs = agora.getTime();
+      const londonMs = utcMs + offsetLondres * 3600 * 1000;
+      const ld = new Date(londonMs);
+
+      const ano = ld.getUTCFullYear();
+      const mes = ld.getUTCMonth();
+      const dia = ld.getUTCDate();
+      const baseLondonDayMs = Date.UTC(ano, mes, dia, 0, 0, 0, 0);
+
+      let horasLimites: number[];
+
+      if (horasCandle === 4) {
+        // CORRIGIDO: 
+        // UTC +1 -> Grade ÍMPAR (1, 5, 9, 13, 17, 21)
+        // UTC 0  -> Grade PAR   (0, 4, 8, 12, 16, 20)
+        horasLimites = offsetLondres === 1 
+          ? [1, 5, 9, 13, 17, 21] 
+          : [0, 4, 8, 12, 16, 20];
+      } else {
+        // Modo 5H mantém a grade fixa de Londres: 02:00, 07:00, 12:00, 16:00 (candle 4h), 21:00
+        horasLimites = [2, 7, 12, 16, 21];
       }
 
-      const duracaoMs = duracaoCandleHoras * 60 * 60 * 1000;
-      const utcMs = agora.getTime();
-      const proximoFechamentoMs = Math.ceil(utcMs / duracaoMs) * duracaoMs;
-      const diferencaMs = proximoFechamentoMs - utcMs;
+      let proximoTimestampMs = null;
+
+      for (const h of horasLimites) {
+        const limiteMs = baseLondonDayMs + h * 3600 * 1000;
+        if (limiteMs > londonMs) {
+          proximoTimestampMs = limiteMs;
+          break;
+        }
+      }
+
+      // Se já passou do último horário de hoje, pega o primeiro horário do dia seguinte
+      if (proximoTimestampMs === null) {
+        const primeiroH = horasLimites[0];
+        proximoTimestampMs = baseLondonDayMs + (24 + primeiroH) * 3600 * 1000;
+      }
+
+      const diferencaMs = proximoTimestampMs - londonMs;
 
       if (diferencaMs <= 0) {
         setTempoRestante4H("00:00:00");

@@ -500,7 +500,23 @@ function Index({ onLogout }: { onLogout: () => void }) {
   const [vixError, setVixError] = useState<string | null>(null);
   const [adx2h, setAdx2h] = useState<number | null>(null);
   const [adxLoading, setAdxLoading] = useState(true);
-  const [utcOffset, setUtcOffset] = useState<0 | 1>(1);
+  // Lê o UTC salvo no navegador ao iniciar (padrão é 1 se não houver nada salvo)
+const [utcOffset, setUtcOffset] = useState<0 | 1>(() => {
+  try {
+    const salvo = localStorage.getItem("utc_offset");
+    return salvo !== null ? (Number(salvo) as 0 | 1) : 1;
+  } catch {
+    return 1;
+  }
+});
+
+// Função para alterar e salvar instantaneamente no localStorage
+const handleMudarUtc = (offset: 0 | 1) => {
+  setUtcOffset(offset);
+  try {
+    localStorage.setItem("utc_offset", String(offset));
+  } catch (err) {}
+};
   const [now, setNow] = useState<Date | null>(null);
   const [tf2h, setTf2h] = useState<TFData | null>(null);
   const [candles2H, setCandles2H] = useState<Kline[]>([]);
@@ -960,38 +976,40 @@ function Index({ onLogout }: { onLogout: () => void }) {
 
     {/* Botões de UTC Londres e Sair */}
     <button
-      onClick={() => setUtcOffset(0)}
-      className={`rounded-lg px-3 py-2 text-xs font-semibold leading-tight transition-colors ${
-        utcOffset === 0
-          ? "bg-blue-600 text-Cyan-300"
-          : "bg-secondary text-muted-foreground hover:text-foreground"
-      }`}
-    >
-      LONDRES
-      <br />
-      UTC 0
-    </button>
-    <button
-      onClick={() => setUtcOffset(1)}
-      className={`rounded-lg px-3 py-2 text-xs font-semibold leading-tight transition-colors ${
-        utcOffset === 1
-          ? "bg-blue-600 text-Cyan-300"
-          : "bg-secondary text-muted-foreground hover:text-foreground"
-      }`}
-    >
-      LONDRES
-      <br />
-      UTC +1
-    </button>
-    <button
-      onClick={onLogout}
-      title="Sair"
-      className="flex items-center gap-1.5 rounded-lg bg-secondary px-3 py-2 text-xs font-semibold text-muted-foreground hover:text-red-600 transition-colors"
-    >
-      <LogOut className="h-3.5 w-3.5" />
-      SAIR
-    </button>
-  </div>
+    onClick={() => handleMudarUtc(0)}
+    className={`rounded-lg px-3 py-2 text-xs font-semibold leading-tight transition-colors ${
+      utcOffset === 0
+        ? "bg-blue-600 text-cyan-300"
+        : "bg-secondary text-muted-foreground hover:text-foreground"
+    }`}
+  >
+    LONDRES
+    <br />
+    UTC 0
+  </button>
+
+  <button
+    onClick={() => handleMudarUtc(1)}
+    className={`rounded-lg px-3 py-2 text-xs font-semibold leading-tight transition-colors ${
+      utcOffset === 1
+        ? "bg-blue-600 text-cyan-300"
+        : "bg-secondary text-muted-foreground hover:text-foreground"
+    }`}
+  >
+    LONDRES
+    <br />
+    UTC +1
+  </button>
+
+  <button
+    onClick={onLogout}
+    title="Sair"
+    className="flex items-center gap-1.5 rounded-lg bg-secondary px-3 py-2 text-xs font-semibold text-muted-foreground hover:text-red-600 transition-colors"
+  >
+    <LogOut className="h-3.5 w-3.5" />
+    SAIR
+  </button>
+</div>
 </header>
 
         <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
