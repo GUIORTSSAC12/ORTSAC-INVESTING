@@ -859,8 +859,8 @@ const handleMudarUtc = (offset: 0 | 1) => {
 
   void ATR14_REFERENCE_LEVELS;
 
-  const marketOpen = !error && !paused;
-
+  const marketOpen = !error && data !== null;
+  
   const isCandleOpenHour = (londonHour: number, cycle: number): boolean =>
     (((londonHour - utcOffset) % cycle) + cycle) % cycle === 0;
 
