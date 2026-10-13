@@ -20,7 +20,7 @@ export interface TradeStrategy {
   gainText: string;
 }
 
-const INITIAL_STOP_PCT = 0.2; 
+const INITIAL_STOP_PCT = 0.15; 
 const STOP_EXTRA_POINTS = 0.010; 
 const INITIAL_GAIN_PCT = 0.6; 
 const ZONE_PCT = 0.70; 

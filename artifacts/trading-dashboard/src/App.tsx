@@ -1218,77 +1218,109 @@ const handleMudarUtc = (offset: 0 | 1) => {
   <div className="relative border border-[#4a4a4a] bg-black rounded-xl p-2 flex flex-col shadow-lg text-white font-mono w-full h-auto min-h-[360px]">
 
     <div className="flex items-center justify-between mb-2 px-1">
-      <h3 className="text-cyan-400 font-bold text-[16px] tracking-wider uppercase">
-        GBP/JPY 4H
-      </h3>
+  <h3 className="text-cyan-400 font-bold text-[16px] tracking-wider uppercase">
+    GBP/JPY 4H
+  </h3>
 
-      <div className="flex items-start space-x-2">
-        <button
-          onClick={() => {
-            localStorage.setItem("mensal_percentual_acumulado", "0.00");
-            window.dispatchEvent(new Event("storage"));
-          }}
-          className="px-2 py-0.5 rounded border border-blue-600 bg-blue-600/20 text-blue-400 hover:bg-blue-600 hover:text-white transition-all font-bold text-xs cursor-pointer shadow mt-0.5"
-          title="Zerar acumulador mensal"
-        >
-          Z
-        </button>
+  <div className="flex items-start space-x-2">
+    <button
+      onClick={() => {
+        localStorage.setItem("mensal_percentual_acumulado", "0.00");
+        window.dispatchEvent(new Event("storage"));
+      }}
+      className="px-2 py-0.5 rounded border border-blue-600 bg-blue-600/20 text-blue-400 hover:bg-blue-600 hover:text-white transition-all font-bold text-xs cursor-pointer shadow mt-0.5"
+      title="Zerar acumulador mensal"
+    >
+      Z
+    </button>
 
-        <button
-          onClick={() => {
-            const atual = parseFloat(localStorage.getItem("mensal_percentual_acumulado") || "0");
-            const novo = Math.round((atual - 0.10) * 100) / 100;
-            localStorage.setItem("mensal_percentual_acumulado", novo.toFixed(2));
-            window.dispatchEvent(new Event("storage"));
-          }}
-          className="px-2 py-0.5 rounded border border-red-600 bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white transition-all font-bold text-xs cursor-pointer shadow mt-0.5"
-          title="Subtrair 0.10%"
-        >
-          -
-        </button>
+    {/* Coluna do Botão de Menos (Cima: 0.10% | Baixo: 0.05%) */}
+    <div className="flex flex-col space-y-1">
+      <button
+        onClick={() => {
+          const atual = parseFloat(localStorage.getItem("mensal_percentual_acumulado") || "0");
+          const novo = Math.round((atual - 0.10) * 100) / 100;
+          localStorage.setItem("mensal_percentual_acumulado", novo.toFixed(2));
+          window.dispatchEvent(new Event("storage"));
+        }}
+        className="px-2 py-0.5 rounded border border-red-600 bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white transition-all font-bold text-xs cursor-pointer shadow mt-0.5"
+        title="Subtrair 0.10%"
+      >
+        -
+      </button>
 
-        {/* BLOCO CENTRAL: OS DOIS EM 24PX */}
-        <div className="flex flex-col items-center leading-none">
-          {/* Performance da Estratégia (24px) */}
-          <span className={`font-bold text-[24px] tabular-nums leading-none tracking-tight ${
-            (parseFloat(localStorage.getItem("mensal_percentual_acumulado") || "0")) >= 0 ? "text-emerald-600" : "text-red-600"
-          }`}>
-            {(() => {
-              const val = parseFloat(localStorage.getItem("mensal_percentual_acumulado") || "0");
-              return `${val > 0 ? "+" : ""}${val.toFixed(2)}%`;
-            })()}
-          </span>
-
-          {/* Variação do Saldo do Mês (24px - empurrado para baixo) */}
-          <span className={`font-bold text-[24px] tabular-nums leading-none mt-1 ${
-            !(localStorage.getItem("variacoes_pct_mes") || "").includes("-") ? "text-emerald-600" : "text-red-600"
-          }`}>
-            {localStorage.getItem("variacoes_pct_mes") || "+0.00%"}
-          </span>
-        </div>
-
-        <button
-          onClick={() => {
-            const atual = parseFloat(localStorage.getItem("mensal_percentual_acumulado") || "0");
-            const novo = Math.round((atual + 0.10) * 100) / 100;
-            localStorage.setItem("mensal_percentual_acumulado", novo.toFixed(2));
-            window.dispatchEvent(new Event("storage"));
-          }}
-          className="px-2 py-0.5 rounded border border-emerald-600 bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600 hover:text-white transition-all font-bold text-xs cursor-pointer shadow mt-0.5"
-          title="Adicionar 0.10%"
-        >
-          +
-        </button>
-      </div>
+      <button
+        onClick={() => {
+          const atual = parseFloat(localStorage.getItem("mensal_percentual_acumulado") || "0");
+          const novo = Math.round((atual - 0.05) * 100) / 100;
+          localStorage.setItem("mensal_percentual_acumulado", novo.toFixed(2));
+          window.dispatchEvent(new Event("storage"));
+        }}
+        className="px-2 py-0.5 rounded border border-red-600 bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white transition-all font-bold text-xs cursor-pointer shadow"
+        title="Subtrair 0.05%"
+      >
+        -
+      </button>
     </div>
 
-    <div className="flex-1 min-h-0">
-      <Minigrafico
-        precoAtual={data?.price ?? null}
-        candles4h={candles4h}
-        tradeAtivo={tradeMinigrafico}
-      />
+    {/* BLOCO CENTRAL: OS DOIS EM 24PX */}
+    <div className="flex flex-col items-center leading-none">
+      {/* Performance da Estratégia (24px) */}
+      <span className={`font-bold text-[24px] tabular-nums leading-none tracking-tight ${
+        (parseFloat(localStorage.getItem("mensal_percentual_acumulado") || "0")) >= 0 ? "text-emerald-600" : "text-red-600"
+      }`}>
+        {(() => {
+          const val = parseFloat(localStorage.getItem("mensal_percentual_acumulado") || "0");
+          return `${val > 0 ? "+" : ""}${val.toFixed(2)}%`;
+        })()}
+      </span>
+
+      {/* Variação do Saldo do Mês (24px - empurrado para baixo) */}
+      <span className={`font-bold text-[24px] tabular-nums leading-none mt-1 ${
+        !(localStorage.getItem("variacoes_pct_mes") || "").includes("-") ? "text-emerald-600" : "text-red-600"
+      }`}>
+        {localStorage.getItem("variacoes_pct_mes") || "+0.00%"}
+      </span>
     </div>
+
+    {/* Coluna do Botão de Mais (Cima: 0.10% | Baixo: 0.05%) */}
+    <div className="flex flex-col space-y-1">
+      <button
+        onClick={() => {
+          const atual = parseFloat(localStorage.getItem("mensal_percentual_acumulado") || "0");
+          const novo = Math.round((atual + 0.10) * 100) / 100;
+          localStorage.setItem("mensal_percentual_acumulado", novo.toFixed(2));
+          window.dispatchEvent(new Event("storage"));
+        }}
+        className="px-2 py-0.5 rounded border border-emerald-600 bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600 hover:text-white transition-all font-bold text-xs cursor-pointer shadow mt-0.5"
+        title="Adicionar 0.10%"
+      >
+        +
+      </button>
+
+      <button
+        onClick={() => {
+          const atual = parseFloat(localStorage.getItem("mensal_percentual_acumulado") || "0");
+          const novo = Math.round((atual + 0.05) * 100) / 100;
+          localStorage.setItem("mensal_percentual_acumulado", novo.toFixed(2));
+          window.dispatchEvent(new Event("storage"));
+        }}
+        className="px-2 py-0.5 rounded border border-emerald-600 bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600 hover:text-white transition-all font-bold text-xs cursor-pointer shadow"
+        title="Adicionar 0.05%"
+      >
+        +
+      </button>
+    </div>
+  </div>
+</div>
+
+<div className="flex-1 min-h-0">
+  <Minigrafico
+    precoAtual={data?.price ?? null}
+    candles4h={candles4h}
+    tradeAtivo={tradeMinigrafico}
+  />
+</div>
   </div>
 
   <MediasAtrCard />
@@ -1539,7 +1571,7 @@ const handleMudarUtc = (offset: 0 | 1) => {
                 <span 
                   id="variacoes_mes_pct"
                   style={{ fontSize: "24px" }} 
-                  className="font-bold tracking-wide text-emerald-600"
+                  className={`font-bold tracking-wide ${!((localStorage.getItem("variacoes_pct_mes") || "").includes("-")) ? "text-emerald-600" : "text-red-600"}`}
                 >
                   {(() => {
                     const mes = parseFloat((localStorage.getItem("variacoes_saldo_mes") || "8.81").replace(",", ".")) || 0;
@@ -1561,7 +1593,7 @@ const handleMudarUtc = (offset: 0 | 1) => {
                 <span 
                   id="variacoes_lucro"
                   style={{ fontSize: "24px" }} 
-                  className="font-bold tracking-wide text-emerald-600"
+                  className={`font-bold tracking-wide ${!((localStorage.getItem("variacoes_lucro_valor") || "").includes("-")) ? "text-emerald-600" : "text-red-600"}`}
                 >
                   {(() => {
                     const atual = parseFloat((localStorage.getItem("gestao_saldo_interno") || "0").replace(",", ".")) || 0;
