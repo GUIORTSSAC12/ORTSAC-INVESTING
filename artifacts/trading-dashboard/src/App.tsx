@@ -548,35 +548,19 @@ const handleMudarUtc = (offset: 0 | 1) => {
   const [ptaxVenda, setPtaxVenda] = useState("--");
 
   useEffect(() => {
-    fetch(
-      "https://docs.google.com/spreadsheets/d/e/2PACX-1vReLlRalss08Ihc-fJmsEbABK-eF2xMOpfLkVfpsTUnCRYmU9Ctv9tbCl3YUeBAAOJARgp-3_viQ1aE/pub?gid=807141386&single=true&output=csv",
-    )
-      .then((res) => res.text())
-      .then((csvText) => {
-        const linhas = csvText.trim().split("\n");
-        if (linhas.length >= 9) {
-          // Expressão regular para respeitar campos entre aspas no CSV do Google Sheets
-          const regexCSV = /(?:^|,)("(?:[^"]|"")*"|[^,]*)/g;
-          let match;
-          const colunasLinha9 = [];
+    // Busca direto da API oficial do Banco Central (Série 1: Dólar PTAX Venda)
+    fetch("https://api.bcb.gov.br/dados/serie/bcdata.sgs.1/dados/ultimos/1?formato=json")
+      .then((res) => res.json())
+      .then((dados) => {
+        if (dados && dados.length > 0) {
+          // Converte o valor para o padrão brasileiro (ex: R$ 5,0521)
+          const valorNumerico = parseFloat(dados[0].valor);
+          const valorFormatado = "R$ " + valorNumerico.toFixed(4).replace(".", ",");
 
-          while ((match = regexCSV.exec(linhas[8])) !== null) {
-            let valor = match[1]
-              .replace(/^"|"$/g, "")
-              .replace(/""/g, '"')
-              .trim();
-            colunasLinha9.push(valor);
-            if (match.index === regexCSV.lastIndex) regexCSV.lastIndex++;
-          }
-
-          // A coluna G corresponde ao índice 6 (A=0, B=1, C=2, D=3, E=4, F=5, G=6)
-          if (colunasLinha9.length > 6) {
-            const valorG9 = colunasLinha9[6] || "--";
-            setPtaxVenda(valorG9);
-          }
+          setPtaxVenda(valorFormatado);
         }
       })
-      .catch((err) => console.error("Erro ao buscar Ptax da planilha:", err));
+      .catch((err) => console.error("Erro ao buscar Ptax da API:", err));
   }, []);
   useEffect(() => {
     const el = entrada2hRef.current;
