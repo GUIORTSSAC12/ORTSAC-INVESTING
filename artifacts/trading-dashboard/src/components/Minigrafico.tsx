@@ -13,6 +13,9 @@ interface Candle4H {
 interface MinigraficoProps {
   precoAtual?: number | null;
   candles4h?: Candle4H[];
+  candles5h?: Candle4H[];
+  is5H?: boolean;
+  setIs5H?: (value: boolean) => void;
   tradeAtivo?: MinigraficoTrade | null; 
   media99?: number | null;
   media20?: number | null;
@@ -21,11 +24,14 @@ interface MinigraficoProps {
 export default function Minigrafico({
   precoAtual = null,
   candles4h = [],
+  candles5h = [],
+  is5H = false,
+  setIs5H,
   tradeAtivo = null,
   media99 = null,
   media20 = null,
 }: MinigraficoProps) {
-  const allCandles = candles4h;
+  const allCandles = is5H ? candles5h : candles4h;
 
   const [zoom, setZoom] = useState<number>(1);
   const [panX, setPanX] = useState<number>(0);
@@ -168,6 +174,18 @@ export default function Minigrafico({
 
   return (
     <div className="relative w-full h-full flex flex-col justify-between overflow-hidden bg-black select-none">
+      {/* Botão compacto 4H/5H no canto superior direito do minigráfico */}
+      {setIs5H && (
+        <button
+          type="button"
+          onClick={() => setIs5H(!is5H)}
+          className="absolute top-2 right-2 text-[11px] font-mono font-bold px-2.5 py-0.5 rounded border border-cyan-400/60 bg-cyan-950/40 text-cyan-400 hover:bg-cyan-500 hover:text-gray-950 transition-all cursor-pointer shadow z-30"
+          title="Alternar entre 4H e 5H"
+        >
+          {is5H ? '5H' : '4H'}
+        </button>
+      )}
+
       <div 
         ref={containerRef}
         className="relative w-full flex-1 min-h-[140px] my-auto cursor-grab active:cursor-grabbing overflow-hidden"

@@ -521,19 +521,41 @@ const handleMudarUtc = (offset: 0 | 1) => {
   const [tf2h, setTf2h] = useState<TFData | null>(null);
   const [candles2H, setCandles2H] = useState<Kline[]>([]);
   const [tf4h, setTf4h] = useState<TFData | null>(null);
-  const [candles4h, setCandles4H] = useState<Kline[]>([]);
+ const [candles4h, setCandles4H] = useState<Kline[]>([]);
+const [candles5h, setCandles5h] = useState<Kline[]>([]);
+
+// Lê do localStorage ao iniciar para manter o último escolhido após o F5
+const [is5H, setIs5H] = useState<boolean>(() => {
+  try {
+    const salvo = localStorage.getItem("is_5h_ativo");
+    return salvo !== null ? JSON.parse(salvo) : false;
+  } catch {
+    return false;
+  }
+});
+
+// Salva automaticamente no localStorage sempre que você alternar o botão
+useEffect(() => {
+  try {
+    localStorage.setItem("is_5h_ativo", JSON.stringify(is5H));
+  } catch (err) {}
+}, [is5H]);
+
+// Atualizado para salvar o fechamento correto (4H ou 5H) com base no modo ativo
+useEffect(() => {
+  const candlesAtivos = is5H ? candles5h : candles4h;
+  const fechamentoAnterior = candlesAtivos?.at(-2)?.close;
   
-  // ==========================================
-  // ADICIONADO AQUI: Salva o fechamento do 4H no localStorage
-  // ==========================================
-  useEffect(() => {
-    const fechamentoAnterior = candles4h?.at(-2)?.close;
-    if (fechamentoAnterior !== undefined && fechamentoAnterior !== null) {
-      try {
-        localStorage.setItem("ultimo_4h_fechamento", String(fechamentoAnterior));
-      } catch (err) {}
-    }
-  }, [candles4h]);
+  if (fechamentoAnterior !== undefined && fechamentoAnterior !== null) {
+    try {
+      // Salva na chave específica do timeframe atual
+      const chave = is5H ? "ultimo_5h_fechamento" : "ultimo_4h_fechamento";
+      localStorage.setItem(chave, String(fechamentoAnterior));
+      // Mantém a chave padrão atualizada também para compatibilidade com o monitor
+      localStorage.setItem("ultimo_4h_fechamento", String(fechamentoAnterior));
+    } catch (err) {}
+  }
+}, [candles4h, candles5h, is5H]);
 
   const [atr2hPrevious, setAtr2hPrevious] = useState<number | null>(null);
   const [paused, setPaused] = useState(false);
@@ -689,7 +711,7 @@ const handleMudarUtc = (offset: 0 | 1) => {
     };
 
     const fetchKlines = async (
-      interval: "2h" | "4h",
+      interval: "2h" | "4h" | "5h",
     ): Promise<{
       data: TFData | null;
       adx: number | null;
@@ -697,8 +719,10 @@ const handleMudarUtc = (offset: 0 | 1) => {
       status: string | null;
     }> => {
       try {
+        // Se for 5h, buscamos os candles de 1h da API para agrupar em blocos de 5 horas perfeitamente
+        const apiInterval = interval === "5h" ? "1h" : interval;
         const r = await fetch(
-          `/api/klines?symbol=${SYMBOL}&interval=${interval}&limit=500`,
+          `/api/klines?symbol=${SYMBOL}&interval=${apiInterval}&limit=500`,
           { cache: "no-store" },
         );
         const j = await r.json();
@@ -725,7 +749,7 @@ const handleMudarUtc = (offset: 0 | 1) => {
             status: "Sem candles disponíveis",
           };
         }
-        const allKs: Kline[] = arr
+        let allKs: Kline[] = arr
           .map((k) => ({
             open: Number(k.open),
             high: Number(k.high),
@@ -734,6 +758,45 @@ const handleMudarUtc = (offset: 0 | 1) => {
             time: Number(k.time),
           }))
           .sort((a, b) => a.time - b.time);
+
+       // Se o intervalo pedido for 5h, agrupamos os candles de 1h ancorados às 02:00 UTC da corretora
+        if (interval === "5h") {
+          const blocos5hMap = new Map<number, Kline>();
+          allKs.forEach(c => {
+            const dataCandle = new Date(c.time);
+            const horaUTC = dataCandle.getUTCHours();
+            
+            // Desloca -2 horas para alinhar o bloco exatamente com o início da corretora (02:00, 07:00, 12:00, 17:00, 22:00)
+            const horaAjustada = (horaUTC - 2 + 24) % 24;
+            const blocoIndex = Math.floor(horaAjustada / 5);
+            const blocoHoraUTC = (blocoIndex * 5 + 2) % 24;
+            
+            // Ajusta o dia caso o bloco recomece após as 22:00 (passando para o dia seguinte ou anterior)
+            const dataAbertura = new Date(dataCandle);
+            if (horaUTC < 2 && blocoHoraUTC >= 22) {
+              dataAbertura.setUTCDate(dataAbertura.getUTCDate() - 1);
+            }
+            dataAbertura.setUTCHours(blocoHoraUTC, 0, 0, 0);
+            const chaveTempo = dataAbertura.getTime();
+
+            if (!blocos5hMap.has(chaveTempo)) {
+              blocos5hMap.set(chaveTempo, {
+                time: chaveTempo,
+                open: c.open,
+                high: c.high,
+                low: c.low,
+                close: c.close,
+              });
+            } else {
+              const bloco = blocos5hMap.get(chaveTempo)!;
+              bloco.high = Math.max(bloco.high, c.high);
+              bloco.low = Math.min(bloco.low, c.low);
+              bloco.close = c.close; // Pega o fechamento correto da última hora do bloco
+            }
+          });
+          allKs = Array.from(blocos5hMap.values()).sort((a, b) => a.time - b.time);
+          setCandles5h(allKs);
+        }
 
         if (interval === "4h") {
           setCandles4H(allKs);
@@ -762,7 +825,11 @@ const handleMudarUtc = (offset: 0 | 1) => {
     };
 
     const fetchTFs = async () => {
-      const [a, b] = await Promise.all([fetchKlines("2h"), fetchKlines("4h")]);
+      const [a, b, c5] = await Promise.all([
+        fetchKlines("2h"), 
+        fetchKlines("4h"), 
+        fetchKlines("5h")
+      ]);
       if (cancelled) return { ok: false };
       if (isFiniteNumber(a.adx)) setAdx2h(a.adx);
       setAdxLoading(false);
@@ -785,7 +852,7 @@ const handleMudarUtc = (offset: 0 | 1) => {
             : { mas: null, atr14: null, stale: true },
         );
       }
-      return { ok: Boolean(a.data && b.data) };
+      return { ok: Boolean(a.data && b.data && c5.data) };
     };
 
     const runCycle = async () => {
@@ -1202,11 +1269,24 @@ const handleMudarUtc = (offset: 0 | 1) => {
   <div className="relative border border-[#4a4a4a] bg-black rounded-xl p-2 flex flex-col shadow-lg text-white font-mono w-full h-auto min-h-[360px]">
 
     <div className="flex items-center justify-between mb-2 px-1">
+  {/* Título limpo à esquerda */}
   <h3 className="text-cyan-400 font-bold text-[16px] tracking-wider uppercase">
-    GBP/JPY 4H
+    GBP/JPY
   </h3>
 
+  {/* Bloco de controles à direita */}
   <div className="flex items-start space-x-2">
+    {/* Botão 4H/5H posicionado exatamente à esquerda do botão Z */}
+    <button
+      type="button"
+      onClick={() => setIs5H(!is5H)}
+      className="px-2 py-0.5 rounded border border-cyan-400/60 bg-cyan-950/40 text-cyan-400 hover:bg-cyan-500 hover:text-gray-950 transition-all font-bold text-xs cursor-pointer shadow mt-0.5"
+      title="Alternar entre 4H e 5H"
+    >
+      {is5H ? '5H' : '4H'}
+    </button>
+
+    {/* Botão Z */}
     <button
       onClick={() => {
         localStorage.setItem("mensal_percentual_acumulado", "0.00");
@@ -1218,7 +1298,7 @@ const handleMudarUtc = (offset: 0 | 1) => {
       Z
     </button>
 
-    {/* Coluna do Botão de Menos (Cima: 0.10% | Baixo: 0.05%) */}
+    {/* Coluna do Botão de Menos */}
     <div className="flex flex-col space-y-1">
       <button
         onClick={() => {
@@ -1247,9 +1327,8 @@ const handleMudarUtc = (offset: 0 | 1) => {
       </button>
     </div>
 
-    {/* BLOCO CENTRAL: OS DOIS EM 24PX */}
+    {/* BLOCO CENTRAL: PERCENTUAIS */}
     <div className="flex flex-col items-center leading-none">
-      {/* Performance da Estratégia (24px) */}
       <span className={`font-bold text-[24px] tabular-nums leading-none tracking-tight ${
         (parseFloat(localStorage.getItem("mensal_percentual_acumulado") || "0")) >= 0 ? "text-emerald-600" : "text-red-600"
       }`}>
@@ -1259,7 +1338,6 @@ const handleMudarUtc = (offset: 0 | 1) => {
         })()}
       </span>
 
-      {/* Variação do Saldo do Mês (24px - empurrado para baixo) */}
       <span className={`font-bold text-[24px] tabular-nums leading-none mt-1 ${
         !(localStorage.getItem("variacoes_pct_mes") || "").includes("-") ? "text-emerald-600" : "text-red-600"
       }`}>
@@ -1267,7 +1345,7 @@ const handleMudarUtc = (offset: 0 | 1) => {
       </span>
     </div>
 
-    {/* Coluna do Botão de Mais (Cima: 0.10% | Baixo: 0.05%) */}
+    {/* Coluna do Botão de Mais */}
     <div className="flex flex-col space-y-1">
       <button
         onClick={() => {
@@ -1300,10 +1378,12 @@ const handleMudarUtc = (offset: 0 | 1) => {
 
 <div className="flex-1 min-h-0">
   <Minigrafico
-    precoAtual={data?.price ?? null}
-    candles4h={candles4h}
-    tradeAtivo={tradeMinigrafico}
-  />
+  precoAtual={data?.price ?? null}
+  candles4h={candles4h}
+  candles5h={candles5h}
+  is5H={is5H}
+  tradeAtivo={tradeMinigrafico}
+/>
 </div>
   </div>
 
@@ -1597,75 +1677,98 @@ const handleMudarUtc = (offset: 0 | 1) => {
       </div>
     </div>
         <div className="rounded-2xl border border-[#4a4a4a] bg-black p-5 flex flex-col h-full justify-between shadow-lg font-mono">
-  <div className="flex flex-col space-y-4">
-    <div>
-      <span
-        style={{ fontSize: "16px" }}
-        className="font-bold tracking-wider text-cyan-400 uppercase block"
-      >
-        STATUS
-      </span>
-    </div>
+<div className="flex flex-col space-y-4 relative">
+  {/* Botão compacto no canto superior direito, exatamente igual ao cronômetro */}
+  <button
+    type="button"
+    onClick={() => setIs5H(!is5H)}
+    className="absolute top-2 right-2 text-[11px] font-mono font-bold px-2.5 py-0.5 rounded border border-cyan-400/60 bg-cyan-950/40 text-cyan-400 hover:bg-cyan-500 hover:text-gray-950 transition-all cursor-pointer shadow z-10"
+    title="Alternar entre 4H e 5H"
+  >
+    {is5H ? '5H' : '4H'}
+  </button>
+
+  <div>
+    <span
+      style={{ fontSize: "16px" }}
+      className="font-bold tracking-wider text-cyan-400 uppercase block"
+    >
+      STATUS
+    </span>
   </div>
-  
+</div>
   {/* Conteúdo dividido em duas colunas */}
   <div className="flex-1 grid grid-cols-2 relative py-4 gap-4">
     {/* Linha vertical divisória no meio */}
     <div className="absolute top-2 bottom-2 left-1/2 -translate-x-1/2 w-[1px] bg-cyan-400/40" />
 
-    {/* Lado Esquerdo: Atual 4H */}
+    {/* Lado Esquerdo: Atual */}
     <div className="flex flex-col pr-2">
       <span className="text-[16px] font-bold text-cyan-400 uppercase tracking-wider mb-3 text-center">
-        Atual 4H
+        {is5H ? 'Atual 5H' : 'Atual 4H'}
       </span>
       <div className="flex-1 flex flex-col justify-around space-y-2 text-[16px] text-gray-300">
         <div className="flex justify-between items-center">
           <span style={{ fontSize: "16px" }}>Abertura:</span>
-          <span className="font-bold text-gray-100 text-[20px]">{candles4h.at(-1)?.open ?? 0}</span>
+          <span className="font-bold text-gray-100 text-[20px]">
+            {is5H ? (candles5h?.at(-1)?.open ?? 0) : (candles4h?.at(-1)?.open ?? 0)}
+          </span>
         </div>
         <div className="flex justify-between items-center">
           <span style={{ fontSize: "16px" }}>Máxima:</span>
-          <span className="font-bold text-green-400 text-[20px]">{candles4h.at(-1)?.high ?? 0}</span>
+          <span className="font-bold text-green-400 text-[20px]">
+            {is5H ? (candles5h?.at(-1)?.high ?? 0) : (candles4h?.at(-1)?.high ?? 0)}
+          </span>
         </div>
         <div className="flex justify-between items-center">
           <span style={{ fontSize: "16px" }}>Mínima:</span>
-          <span className="font-bold text-red-400 text-[20px]">{candles4h.at(-1)?.low ?? 0}</span>
+          <span className="font-bold text-red-400 text-[20px]">
+            {is5H ? (candles5h?.at(-1)?.low ?? 0) : (candles4h?.at(-1)?.low ?? 0)}
+          </span>
         </div>
         <div className="flex justify-between items-center">
           <span style={{ fontSize: "16px" }}>Fechamento:</span>
-          <span className="font-bold text-gray-100 text-[20px]">{candles4h.at(-1)?.close ?? 0}</span>
+          <span className="font-bold text-gray-100 text-[20px]">
+            {is5H ? (candles5h?.at(-1)?.close ?? 0) : (candles4h?.at(-1)?.close ?? 0)}
+          </span>
         </div>
       </div>
     </div>
 
-    {/* Lado Direito: Último 4H */}
+    {/* Lado Direito: Último */}
     <div className="flex flex-col pl-2">
       <span className="text-[16px] font-bold text-cyan-400 uppercase tracking-wider mb-3 text-center">
-        Último 4H
+        {is5H ? 'Último 5H' : 'Último 4H'}
       </span>
       <div className="flex-1 flex flex-col justify-around space-y-2 text-[16px] text-gray-300">
         <div className="flex justify-between items-center">
           <span style={{ fontSize: "16px" }}>Abertura:</span>
-          <span className="font-bold text-gray-100 text-[20px]">{candles4h.at(-2)?.open ?? 0}</span>
+          <span className="font-bold text-gray-100 text-[20px]">
+            {is5H ? (candles5h?.at(-2)?.open ?? 0) : (candles4h?.at(-2)?.open ?? 0)}
+          </span>
         </div>
         <div className="flex justify-between items-center">
           <span style={{ fontSize: "16px" }}>Máxima:</span>
-          <span className="font-bold text-green-400 text-[20px]">{candles4h.at(-2)?.high ?? 0}</span>
+          <span className="font-bold text-green-400 text-[20px]">
+            {is5H ? (candles5h?.at(-2)?.high ?? 0) : (candles4h?.at(-2)?.high ?? 0)}
+          </span>
         </div>
         <div className="flex justify-between items-center">
           <span style={{ fontSize: "16px" }}>Mínima:</span>
-          <span className="font-bold text-red-400 text-[20px]">{candles4h.at(-2)?.low ?? 0}</span>
+          <span className="font-bold text-red-400 text-[20px]">
+            {is5H ? (candles5h?.at(-2)?.low ?? 0) : (candles4h?.at(-2)?.low ?? 0)}
+          </span>
         </div>
         <div className="flex justify-between items-center">
           <span style={{ fontSize: "16px" }}>Fechamento:</span>
-          <span className="font-bold text-gray-100 text-[20px]">{candles4h.at(-2)?.close ?? 0}</span>
+          <span className="font-bold text-gray-100 text-[20px]">
+            {is5H ? (candles5h?.at(-2)?.close ?? 0) : (candles4h?.at(-2)?.close ?? 0)}
+          </span>
         </div>
       </div>
     </div>
   </div>
-</div>
-
-            <div className="rounded-2xl border border-[#4a4a4a] bg-black p-4 flex flex-col">
+</div>      <div className="rounded-2xl border border-[#4a4a4a] bg-black p-4 flex flex-col">
               {/* Cabeçalho unificado no App.tsx: Título na esquerda e o Botão do Olhinho na direita */}
               <div className="flex items-center justify-between mb-2">
                 <span
