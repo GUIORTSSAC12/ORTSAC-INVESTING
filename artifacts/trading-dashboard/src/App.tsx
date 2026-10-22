@@ -521,41 +521,39 @@ const handleMudarUtc = (offset: 0 | 1) => {
   const [tf2h, setTf2h] = useState<TFData | null>(null);
   const [candles2H, setCandles2H] = useState<Kline[]>([]);
   const [tf4h, setTf4h] = useState<TFData | null>(null);
- const [candles4h, setCandles4H] = useState<Kline[]>([]);
-const [candles5h, setCandles5h] = useState<Kline[]>([]);
+  const [candles4h, setCandles4H] = useState<Kline[]>([]);
+  const [candles5h, setCandles5h] = useState<Kline[]>([]);
+  const [candles1s, setCandles1s] = useState<Kline[]>([]); // Adicionado para o Semanal (1S)
 
-// Lê do localStorage ao iniciar para manter o último escolhido após o F5
-const [is5H, setIs5H] = useState<boolean>(() => {
-  try {
-    const salvo = localStorage.getItem("is_5h_ativo");
-    return salvo !== null ? JSON.parse(salvo) : false;
-  } catch {
-    return false;
-  }
-});
-
-// Salva automaticamente no localStorage sempre que você alternar o botão
-useEffect(() => {
-  try {
-    localStorage.setItem("is_5h_ativo", JSON.stringify(is5H));
-  } catch (err) {}
-}, [is5H]);
-
-// Atualizado para salvar o fechamento correto (4H ou 5H) com base no modo ativo
-useEffect(() => {
-  const candlesAtivos = is5H ? candles5h : candles4h;
-  const fechamentoAnterior = candlesAtivos?.at(-2)?.close;
-  
-  if (fechamentoAnterior !== undefined && fechamentoAnterior !== null) {
+  // Lê do localStorage ao iniciar (suporta '4H', '5H' ou '1S')
+  const [visao, setVisao] = useState<string>(() => {
     try {
-      // Salva na chave específica do timeframe atual
-      const chave = is5H ? "ultimo_5h_fechamento" : "ultimo_4h_fechamento";
-      localStorage.setItem(chave, String(fechamentoAnterior));
-      // Mantém a chave padrão atualizada também para compatibilidade com o monitor
-      localStorage.setItem("ultimo_4h_fechamento", String(fechamentoAnterior));
+      const salvo = localStorage.getItem("status_visao_ativo");
+      return salvo !== null ? JSON.parse(salvo) : '4H';
+    } catch {
+      return '4H';
+    }
+  });
+
+  // Salva automaticamente no localStorage sempre que alternar os botões
+  useEffect(() => {
+    try {
+      localStorage.setItem("status_visao_ativo", JSON.stringify(visao));
     } catch (err) {}
-  }
-}, [candles4h, candles5h, is5H]);
+  }, [visao]);
+
+  // Atualizado para salvar o fechamento correto (4H, 5H ou 1S) com base no modo ativo
+  useEffect(() => {
+    const candlesAtivos = visao === '5H' ? candles5h : (visao === '1S' ? candles1s : candles4h);
+    const fechamentoAnterior = candlesAtivos?.at(-2)?.close;
+    
+    if (fechamentoAnterior !== undefined && fechamentoAnterior !== null) {
+      try {
+        const chave = visao === '5H' ? "ultimo_5h_fechamento" : (visao === '1S' ? "ultimo_1s_fechamento" : "ultimo_4h_fechamento");
+        localStorage.setItem(chave, String(fechamentoAnterior));
+      } catch (err) {}
+    }
+  }, [candles4h, candles5h, candles1s, visao]);
 
   const [atr2hPrevious, setAtr2hPrevious] = useState<number | null>(null);
   const [paused, setPaused] = useState(false);
@@ -711,149 +709,155 @@ useEffect(() => {
     };
 
     const fetchKlines = async (
-      interval: "2h" | "4h" | "5h",
-    ): Promise<{
-      data: TFData | null;
-      adx: number | null;
-      atrPrevious: number | null;
-      status: string | null;
-    }> => {
-      try {
-        // Se for 5h, buscamos os candles de 1h da API para agrupar em blocos de 5 horas perfeitamente
-        const apiInterval = interval === "5h" ? "1h" : interval;
-        const r = await fetch(
-          `/api/klines?symbol=${SYMBOL}&interval=${apiInterval}&limit=500`,
-          { cache: "no-store" },
-        );
-        const j = await r.json();
-        if (j?.code && j.code !== 0) {
-          return {
-            data: null,
-            adx: null,
-            atrPrevious: null,
-            status: `Mercado pausado (${j.code})`,
-          };
-        }
-        const arr = (j?.data ?? []) as Array<{
-          open: string;
-          high: string;
-          low: string;
-          close: string;
-          time: number;
-        }>;
-        if (!arr.length) {
-          return {
-            data: null,
-            adx: null,
-            atrPrevious: null,
-            status: "Sem candles disponíveis",
-          };
-        }
-        let allKs: Kline[] = arr
-          .map((k) => ({
-            open: Number(k.open),
-            high: Number(k.high),
-            low: Number(k.low),
-            close: Number(k.close),
-            time: Number(k.time),
-          }))
-          .sort((a, b) => a.time - b.time);
+    interval: "2h" | "4h" | "5h" | "1w",
+  ): Promise<{
+    data: TFData | null;
+    adx: number | null;
+    atrPrevious: number | null;
+    status: string | null;
+  }> => {
+    try {
+      // Se for 5h usa 1h, se for 1w usa 1w com limit=520 conforme a regra
+      const apiInterval = interval === "5h" ? "1h" : interval;
+      const limitMax = interval === "1w" ? 520 : 500;
 
-       // Se o intervalo pedido for 5h, agrupamos os candles de 1h ancorados às 02:00 UTC da corretora
-        if (interval === "5h") {
-          const blocos5hMap = new Map<number, Kline>();
-          allKs.forEach(c => {
-            const dataCandle = new Date(c.time);
-            const horaUTC = dataCandle.getUTCHours();
-            
-            // Desloca -2 horas para alinhar o bloco exatamente com o início da corretora (02:00, 07:00, 12:00, 17:00, 22:00)
-            const horaAjustada = (horaUTC - 2 + 24) % 24;
-            const blocoIndex = Math.floor(horaAjustada / 5);
-            const blocoHoraUTC = (blocoIndex * 5 + 2) % 24;
-            
-            // Ajusta o dia caso o bloco recomece após as 22:00 (passando para o dia seguinte ou anterior)
-            const dataAbertura = new Date(dataCandle);
-            if (horaUTC < 2 && blocoHoraUTC >= 22) {
-              dataAbertura.setUTCDate(dataAbertura.getUTCDate() - 1);
-            }
-            dataAbertura.setUTCHours(blocoHoraUTC, 0, 0, 0);
-            const chaveTempo = dataAbertura.getTime();
-
-            if (!blocos5hMap.has(chaveTempo)) {
-              blocos5hMap.set(chaveTempo, {
-                time: chaveTempo,
-                open: c.open,
-                high: c.high,
-                low: c.low,
-                close: c.close,
-              });
-            } else {
-              const bloco = blocos5hMap.get(chaveTempo)!;
-              bloco.high = Math.max(bloco.high, c.high);
-              bloco.low = Math.min(bloco.low, c.low);
-              bloco.close = c.close; // Pega o fechamento correto da última hora do bloco
-            }
-          });
-          allKs = Array.from(blocos5hMap.values()).sort((a, b) => a.time - b.time);
-          setCandles5h(allKs);
-        }
-
-        if (interval === "4h") {
-          setCandles4H(allKs);
-        }
-
-        const closedKs = allKs.slice(0, -1);
-
-        return {
-          data: {
-            ...processTF(allKs, closedKs),
-            lastClosedCandle: closedKs.at(-1) ?? null,
-          },
-          adx: interval === "2h" ? computeADX14(allKs) : null,
-          atrPrevious:
-            interval === "2h" ? computeATR14(closedKs.slice(0, -1)) : null,
-          status: null,
-        };
-      } catch (e) {
+      const r = await fetch(
+        `/api/klines?symbol=${SYMBOL}&interval=${apiInterval}&limit=${limitMax}`,
+        { cache: "no-store" },
+      );
+      const j = await r.json();
+      if (j?.code && j.code !== 0) {
         return {
           data: null,
           adx: null,
           atrPrevious: null,
-          status: "Erro de rede",
+          status: `Mercado pausado (${j.code})`,
         };
       }
-    };
+      const arr = (j?.data ?? []) as Array<{
+        open: string;
+        high: string;
+        low: string;
+        close: string;
+        time: number;
+      }>;
+      if (!arr.length) {
+        return {
+          data: null,
+          adx: null,
+          atrPrevious: null,
+          status: "Sem candles disponíveis",
+        };
+      }
+      let allKs: Kline[] = arr
+        .map((k) => ({
+          open: Number(k.open),
+          high: Number(k.high),
+          low: Number(k.low),
+          close: Number(k.close),
+          time: Number(k.time),
+        }))
+        .sort((a, b) => a.time - b.time);
 
-    const fetchTFs = async () => {
-      const [a, b, c5] = await Promise.all([
-        fetchKlines("2h"), 
-        fetchKlines("4h"), 
-        fetchKlines("5h")
-      ]);
-      if (cancelled) return { ok: false };
-      if (isFiniteNumber(a.adx)) setAdx2h(a.adx);
-      setAdxLoading(false);
-      if (isFiniteNumber(a.atrPrevious)) setAtr2hPrevious(a.atrPrevious);
-      if (a.data) {
-        setTf2h((prev) => mergeTFData(prev, a.data!));
-      } else {
-        setTf2h((prev) =>
-          prev
-            ? { ...prev, stale: true }
-            : { mas: null, atr14: null, stale: true },
-        );
+      // Se o intervalo pedido for 5h, agrupamos os candles de 1h ancorados às 02:00 UTC da corretora
+      if (interval === "5h") {
+        const blocos5hMap = new Map<number, Kline>();
+        allKs.forEach(c => {
+          const dataCandle = new Date(c.time);
+          const horaUTC = dataCandle.getUTCHours();
+          
+          const horaAjustada = (horaUTC - 2 + 24) % 24;
+          const blocoIndex = Math.floor(horaAjustada / 5);
+          const blocoHoraUTC = (blocoIndex * 5 + 2) % 24;
+          
+          const dataAbertura = new Date(dataCandle);
+          if (horaUTC < 2 && blocoHoraUTC >= 22) {
+            dataAbertura.setUTCDate(dataAbertura.getUTCDate() - 1);
+          }
+          dataAbertura.setUTCHours(blocoHoraUTC, 0, 0, 0);
+          const chaveTempo = dataAbertura.getTime();
+
+          if (!blocos5hMap.has(chaveTempo)) {
+            blocos5hMap.set(chaveTempo, {
+              time: chaveTempo,
+              open: c.open,
+              high: c.high,
+              low: c.low,
+              close: c.close,
+            });
+          } else {
+            const bloco = blocos5hMap.get(chaveTempo)!;
+            bloco.high = Math.max(bloco.high, c.high);
+            bloco.low = Math.min(bloco.low, c.low);
+            bloco.close = c.close;
+          }
+        });
+        allKs = Array.from(blocos5hMap.values()).sort((a, b) => a.time - b.time);
+        setCandles5h(allKs);
       }
-      if (b.data) {
-        setTf4h((prev) => mergeTFData(prev, b.data!));
-      } else {
-        setTf4h((prev) =>
-          prev
-            ? { ...prev, stale: true }
-            : { mas: null, atr14: null, stale: true },
-        );
+
+      if (interval === "4h") {
+        setCandles4H(allKs);
       }
-      return { ok: Boolean(a.data && b.data && c5.data) };
-    };
+
+      // Salva os candles semanais (1S / 1W) no estado correspondente
+      if (interval === "1w") {
+        setCandles1s(allKs);
+      }
+
+      const closedKs = allKs.slice(0, -1);
+
+      return {
+        data: {
+          ...processTF(allKs, closedKs),
+          lastClosedCandle: closedKs.at(-1) ?? null,
+        },
+        adx: interval === "2h" ? computeADX14(allKs) : null,
+        atrPrevious:
+          interval === "2h" ? computeATR14(closedKs.slice(0, -1)) : null,
+        status: null,
+      };
+    } catch (e) {
+      return {
+        data: null,
+        adx: null,
+        atrPrevious: null,
+        status: "Erro de rede",
+      };
+    }
+  };
+
+  const fetchTFs = async () => {
+    const [a, b, c5, w1] = await Promise.all([
+      fetchKlines("2h"), 
+      fetchKlines("4h"), 
+      fetchKlines("5h"),
+      fetchKlines("1w"), // <-- Adicionado para buscar o semanal (1S) com 520 candles
+    ]);
+    if (cancelled) return { ok: false };
+    if (isFiniteNumber(a.adx)) setAdx2h(a.adx);
+    setAdxLoading(false);
+    if (isFiniteNumber(a.atrPrevious)) setAtr2hPrevious(a.atrPrevious);
+    if (a.data) {
+      setTf2h((prev) => mergeTFData(prev, a.data!));
+    } else {
+      setTf2h((prev) =>
+        prev
+          ? { ...prev, stale: true }
+          : { mas: null, atr14: null, stale: true },
+      );
+    }
+    if (b.data) {
+      setTf4h((prev) => mergeTFData(prev, b.data!));
+    } else {
+      setTf4h((prev) =>
+        prev
+          ? { ...prev, stale: true }
+          : { mas: null, atr14: null, stale: true },
+      );
+    }
+    return { ok: Boolean(a.data && b.data && c5.data) };
+  };
 
     const runCycle = async () => {
       const [tickerOk, tfRes] = await Promise.all([
@@ -1276,14 +1280,20 @@ useEffect(() => {
 
   {/* Bloco de controles à direita */}
   <div className="flex items-start space-x-2">
-    {/* Botão 4H/5H posicionado exatamente à esquerda do botão Z */}
+    {/* Botão Cíclico 4H / 5H / 1S posicionado exatamente à esquerda do botão Z */}
     <button
       type="button"
-      onClick={() => setIs5H(!is5H)}
+      onClick={() => {
+        setVisao(prev => {
+          if (prev === '4H') return '5H';
+          if (prev === '5H') return '1S';
+          return '4H';
+        });
+      }}
       className="px-2 py-0.5 rounded border border-cyan-400/60 bg-cyan-950/40 text-cyan-400 hover:bg-cyan-500 hover:text-gray-950 transition-all font-bold text-xs cursor-pointer shadow mt-0.5"
-      title="Alternar entre 4H e 5H"
+      title="Alternar Timeframe (4H / 5H / 1S)"
     >
-      {is5H ? '5H' : '4H'}
+      {visao}
     </button>
 
     {/* Botão Z */}
@@ -1327,8 +1337,9 @@ useEffect(() => {
       </button>
     </div>
 
-    {/* BLOCO CENTRAL: PERCENTUAIS */}
+    {/* BLOCO CENTRAL: PERCENTUAIS + VALOR DA ZONA SEMANAL ALINHADO */}
     <div className="flex flex-col items-center leading-none">
+      {/* Primeiro Percentual (Acumulado) */}
       <span className={`font-bold text-[24px] tabular-nums leading-none tracking-tight ${
         (parseFloat(localStorage.getItem("mensal_percentual_acumulado") || "0")) >= 0 ? "text-emerald-600" : "text-red-600"
       }`}>
@@ -1338,10 +1349,16 @@ useEffect(() => {
         })()}
       </span>
 
+      {/* Segundo Percentual (-1.59%) */}
       <span className={`font-bold text-[24px] tabular-nums leading-none mt-1 ${
         !(localStorage.getItem("variacoes_pct_mes") || "").includes("-") ? "text-emerald-600" : "text-red-600"
       }`}>
         {localStorage.getItem("variacoes_pct_mes") || "+0.00%"}
+      </span>
+
+      {/* VALOR DA ZONA SEMANAL (EMPURRADO PARA BAIXO COM MT-1, MESMO TAMANHO E COR CIANO) */}
+      <span className="font-bold text-[24px] tabular-nums leading-none mt-1 text-cyan-400 tracking-tight">
+        {localStorage.getItem("zona_1s_valor") || "210.410"}
       </span>
     </div>
 
@@ -1377,11 +1394,12 @@ useEffect(() => {
 </div>
 
 <div className="flex-1 min-h-0">
-  <Minigrafico
+ <Minigrafico
   precoAtual={data?.price ?? null}
   candles4h={candles4h}
   candles5h={candles5h}
-  is5H={is5H}
+  candles1s={candles1s}   // <-- Passa o array semanal
+  visao={visao}            // <-- Passa o estado ('4H', '5H', '1S')
   tradeAtivo={tradeMinigrafico}
 />
 </div>
@@ -1678,15 +1696,42 @@ useEffect(() => {
     </div>
         <div className="rounded-2xl border border-[#4a4a4a] bg-black p-5 flex flex-col h-full justify-between shadow-lg font-mono">
 <div className="flex flex-col space-y-4 relative">
-  {/* Botão compacto no canto superior direito, exatamente igual ao cronômetro */}
-  <button
-    type="button"
-    onClick={() => setIs5H(!is5H)}
-    className="absolute top-2 right-2 text-[11px] font-mono font-bold px-2.5 py-0.5 rounded border border-cyan-400/60 bg-cyan-950/40 text-cyan-400 hover:bg-cyan-500 hover:text-gray-950 transition-all cursor-pointer shadow z-10"
-    title="Alternar entre 4H e 5H"
-  >
-    {is5H ? '5H' : '4H'}
-  </button>
+  {/* Botões compactos no canto superior direito: 4H, 5H e 1S */}
+  <div className="absolute top-2 right-2 flex space-x-1 z-10">
+    <button
+      type="button"
+      onClick={() => setVisao('4H')}
+      className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded border transition-all cursor-pointer shadow ${
+        visao === '4H' 
+          ? 'bg-cyan-500 text-gray-950 border-cyan-400' 
+          : 'border-cyan-400/60 bg-cyan-950/40 text-cyan-400 hover:bg-cyan-500 hover:text-gray-950'
+      }`}
+    >
+      4H
+    </button>
+    <button
+      type="button"
+      onClick={() => setVisao('5H')}
+      className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded border transition-all cursor-pointer shadow ${
+        visao === '5H' 
+          ? 'bg-cyan-500 text-gray-950 border-cyan-400' 
+          : 'border-cyan-400/60 bg-cyan-950/40 text-cyan-400 hover:bg-cyan-500 hover:text-gray-950'
+      }`}
+    >
+      5H
+    </button>
+    <button
+      type="button"
+      onClick={() => setVisao('1S')}
+      className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded border transition-all cursor-pointer shadow ${
+        visao === '1S' 
+          ? 'bg-cyan-500 text-gray-950 border-cyan-400' 
+          : 'border-cyan-400/60 bg-cyan-950/40 text-cyan-400 hover:bg-cyan-500 hover:text-gray-950'
+      }`}
+    >
+      1S
+    </button>
+  </div>
 
   <div>
     <span
@@ -1702,73 +1747,114 @@ useEffect(() => {
     {/* Linha vertical divisória no meio */}
     <div className="absolute top-2 bottom-2 left-1/2 -translate-x-1/2 w-[1px] bg-cyan-400/40" />
 
-    {/* Lado Esquerdo: Atual */}
+    {/* LADO ESQUERDO: Se for 1S mostra Sentido e Zona. Se for 4H/5H mostra o Atual */}
     <div className="flex flex-col pr-2">
-      <span className="text-[16px] font-bold text-cyan-400 uppercase tracking-wider mb-3 text-center">
-        {is5H ? 'Atual 5H' : 'Atual 4H'}
-      </span>
-      <div className="flex-1 flex flex-col justify-around space-y-2 text-[16px] text-gray-300">
-        <div className="flex justify-between items-center">
-          <span style={{ fontSize: "16px" }}>Abertura:</span>
-          <span className="font-bold text-gray-100 text-[20px]">
-            {is5H ? (candles5h?.at(-1)?.open ?? 0) : (candles4h?.at(-1)?.open ?? 0)}
+      {visao === '1S' ? (
+        (() => {
+          const ultimo1s = candles1s?.at(-2);
+          const abertura = ultimo1s?.open ?? 0;
+          const maxima = ultimo1s?.high ?? 0;
+          const minima = ultimo1s?.low ?? 0;
+          const fechamento = ultimo1s?.close ?? 0;
+
+          const amplitude = maxima - minima;
+          const isAlta = fechamento >= abertura;
+          const sentido = isAlta ? 'ALTA' : 'BAIXA';
+          const zonaCalculada = isAlta 
+            ? minima + (amplitude * 0.786) 
+            : maxima - (amplitude * 0.786);
+
+          return (
+            <div className="flex flex-col h-full justify-around">
+              <span className="text-[16px] font-bold text-cyan-400 uppercase tracking-wider mb-3 text-center">
+                Filtro 1S (0.786)
+              </span>
+              <div className="flex-1 flex flex-col justify-around space-y-3 text-[16px] text-gray-300">
+                <div className="flex justify-between items-center">
+                  <span style={{ fontSize: "16px" }}>Sentido:</span>
+                  <span className={`font-bold text-[18px] ${isAlta ? 'text-green-400' : 'text-red-400'}`}>
+                    {sentido}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span style={{ fontSize: "16px" }}>Zona:</span>
+                  <span className="font-bold text-cyan-300 text-[20px]">
+                    {zonaCalculada.toFixed(3)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          );
+        })()
+      ) : (
+        <>
+          <span className="text-[16px] font-bold text-cyan-400 uppercase tracking-wider mb-3 text-center">
+            {visao === '5H' ? 'Atual 5H' : 'Atual 4H'}
           </span>
-        </div>
-        <div className="flex justify-between items-center">
-          <span style={{ fontSize: "16px" }}>Máxima:</span>
-          <span className="font-bold text-green-400 text-[20px]">
-            {is5H ? (candles5h?.at(-1)?.high ?? 0) : (candles4h?.at(-1)?.high ?? 0)}
-          </span>
-        </div>
-        <div className="flex justify-between items-center">
-          <span style={{ fontSize: "16px" }}>Mínima:</span>
-          <span className="font-bold text-red-400 text-[20px]">
-            {is5H ? (candles5h?.at(-1)?.low ?? 0) : (candles4h?.at(-1)?.low ?? 0)}
-          </span>
-        </div>
-        <div className="flex justify-between items-center">
-          <span style={{ fontSize: "16px" }}>Fechamento:</span>
-          <span className="font-bold text-gray-100 text-[20px]">
-            {is5H ? (candles5h?.at(-1)?.close ?? 0) : (candles4h?.at(-1)?.close ?? 0)}
-          </span>
-        </div>
-      </div>
+          <div className="flex-1 flex flex-col justify-around space-y-2 text-[16px] text-gray-300">
+            <div className="flex justify-between items-center">
+              <span style={{ fontSize: "16px" }}>Abertura:</span>
+              <span className="font-bold text-gray-100 text-[20px]">
+                {visao === '5H' ? (candles5h?.at(-1)?.open ?? 0) : (candles4h?.at(-1)?.open ?? 0)}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span style={{ fontSize: "16px" }}>Máxima:</span>
+              <span className="font-bold text-green-400 text-[20px]">
+                {visao === '5H' ? (candles5h?.at(-1)?.high ?? 0) : (candles4h?.at(-1)?.high ?? 0)}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span style={{ fontSize: "16px" }}>Mínima:</span>
+              <span className="font-bold text-red-400 text-[20px]">
+                {visao === '5H' ? (candles5h?.at(-1)?.low ?? 0) : (candles4h?.at(-1)?.low ?? 0)}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span style={{ fontSize: "16px" }}>Fechamento:</span>
+              <span className="font-bold text-gray-100 text-[20px]">
+                {visao === '5H' ? (candles5h?.at(-1)?.close ?? 0) : (candles4h?.at(-1)?.close ?? 0)}
+              </span>
+            </div>
+          </div>
+        </>
+      )}
     </div>
 
-    {/* Lado Direito: Último */}
+    {/* LADO DIREITO: Último (4H, 5H ou 1S) */}
     <div className="flex flex-col pl-2">
       <span className="text-[16px] font-bold text-cyan-400 uppercase tracking-wider mb-3 text-center">
-        {is5H ? 'Último 5H' : 'Último 4H'}
+        {visao === '1S' ? 'Último 1S' : (visao === '5H' ? 'Último 5H' : 'Último 4H')}
       </span>
       <div className="flex-1 flex flex-col justify-around space-y-2 text-[16px] text-gray-300">
         <div className="flex justify-between items-center">
           <span style={{ fontSize: "16px" }}>Abertura:</span>
           <span className="font-bold text-gray-100 text-[20px]">
-            {is5H ? (candles5h?.at(-2)?.open ?? 0) : (candles4h?.at(-2)?.open ?? 0)}
+            {visao === '1S' ? (candles1s?.at(-2)?.open ?? 0) : (visao === '5H' ? (candles5h?.at(-2)?.open ?? 0) : (candles4h?.at(-2)?.open ?? 0))}
           </span>
         </div>
         <div className="flex justify-between items-center">
           <span style={{ fontSize: "16px" }}>Máxima:</span>
           <span className="font-bold text-green-400 text-[20px]">
-            {is5H ? (candles5h?.at(-2)?.high ?? 0) : (candles4h?.at(-2)?.high ?? 0)}
+            {visao === '1S' ? (candles1s?.at(-2)?.high ?? 0) : (visao === '5H' ? (candles5h?.at(-2)?.high ?? 0) : (candles4h?.at(-2)?.high ?? 0))}
           </span>
         </div>
         <div className="flex justify-between items-center">
           <span style={{ fontSize: "16px" }}>Mínima:</span>
           <span className="font-bold text-red-400 text-[20px]">
-            {is5H ? (candles5h?.at(-2)?.low ?? 0) : (candles4h?.at(-2)?.low ?? 0)}
+            {visao === '1S' ? (candles1s?.at(-2)?.low ?? 0) : (visao === '5H' ? (candles5h?.at(-2)?.low ?? 0) : (candles4h?.at(-2)?.low ?? 0))}
           </span>
         </div>
         <div className="flex justify-between items-center">
           <span style={{ fontSize: "16px" }}>Fechamento:</span>
           <span className="font-bold text-gray-100 text-[20px]">
-            {is5H ? (candles5h?.at(-2)?.close ?? 0) : (candles4h?.at(-2)?.close ?? 0)}
+            {visao === '1S' ? (candles1s?.at(-2)?.close ?? 0) : (visao === '5H' ? (candles5h?.at(-2)?.close ?? 0) : (candles4h?.at(-2)?.close ?? 0))}
           </span>
         </div>
       </div>
     </div>
   </div>
-</div>      <div className="rounded-2xl border border-[#4a4a4a] bg-black p-4 flex flex-col">
+</div>   <div className="rounded-2xl border border-[#4a4a4a] bg-black p-4 flex flex-col">
               {/* Cabeçalho unificado no App.tsx: Título na esquerda e o Botão do Olhinho na direita */}
               <div className="flex items-center justify-between mb-2">
                 <span

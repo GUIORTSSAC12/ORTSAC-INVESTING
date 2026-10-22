@@ -14,8 +14,10 @@ interface MinigraficoProps {
   precoAtual?: number | null;
   candles4h?: Candle4H[];
   candles5h?: Candle4H[];
+  candles1s?: Candle4H[];
+  visao?: string;
   is5H?: boolean;
-  setIs5H?: (value: boolean) => void;
+  setIs5H?: (value: boolean | string | ((prev: any) => any)) => void;
   tradeAtivo?: MinigraficoTrade | null; 
   media99?: number | null;
   media20?: number | null;
@@ -25,13 +27,16 @@ export default function Minigrafico({
   precoAtual = null,
   candles4h = [],
   candles5h = [],
+  candles1s = [],
+  visao = '4H',
   is5H = false,
   setIs5H,
   tradeAtivo = null,
   media99 = null,
   media20 = null,
 }: MinigraficoProps) {
-  const allCandles = is5H ? candles5h : candles4h;
+  // Seleciona dinamicamente qual array de candles exibir com base na visão ativa ('4H', '5H' ou '1S')
+  const allCandles = visao === '5H' ? candles5h : (visao === '1S' ? candles1s : candles4h);
 
   const [zoom, setZoom] = useState<number>(1);
   const [panX, setPanX] = useState<number>(0);
@@ -174,15 +179,27 @@ export default function Minigrafico({
 
   return (
     <div className="relative w-full h-full flex flex-col justify-between overflow-hidden bg-black select-none">
-      {/* Botão compacto 4H/5H no canto superior direito do minigráfico */}
+      {/* Botão compacto cíclico no canto superior direito do minigráfico (caso usado internamente) */}
       {setIs5H && (
         <button
           type="button"
-          onClick={() => setIs5H(!is5H)}
+          onClick={() => {
+            if (typeof setIs5H === 'function') {
+              setIs5H((prev: any) => {
+                // Suporta transição cíclica caso venha do state 'visao'
+                if (typeof prev === 'string') {
+                  if (prev === '4H') return '5H';
+                  if (prev === '5H') return '1S';
+                  return '4H';
+                }
+                return !prev;
+              });
+            }
+          }}
           className="absolute top-2 right-2 text-[11px] font-mono font-bold px-2.5 py-0.5 rounded border border-cyan-400/60 bg-cyan-950/40 text-cyan-400 hover:bg-cyan-500 hover:text-gray-950 transition-all cursor-pointer shadow z-30"
-          title="Alternar entre 4H e 5H"
+          title="Alternar Timeframe (4H / 5H / 1S)"
         >
-          {is5H ? '5H' : '4H'}
+          {visao}
         </button>
       )}
 
