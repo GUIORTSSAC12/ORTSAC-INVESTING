@@ -41,7 +41,14 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MonitorProp
   });
 
   const [tempoRestante4H, setTempoRestante4H] = useState<string>("00:00:00");
-  const [horasCandle, setHorasCandle] = useState<number>(4);
+  const [horasCandle, setHorasCandle] = useState<number>(() => {
+    try {
+      const salvo = localStorage.getItem("monitor_horas_candle");
+      return salvo !== null ? Number(salvo) : 4;
+    } catch {
+      return 4;
+    }
+  });
 
   const [modoArmado, setModoArmado] = useState<"TOPO" | "FUNDO" | null>(() => {
     try {
@@ -75,7 +82,13 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MonitorProp
   };
 
   const handleAlternarHoras = () => {
-    setHorasCandle(prev => (prev === 4 ? 5 : 4));
+    setHorasCandle(prev => {
+      const proximo = prev === 4 ? 5 : 4;
+      try {
+        localStorage.setItem("monitor_horas_candle", String(proximo));
+      } catch (err) {}
+      return proximo;
+    });
   };
 
   // Cronômetro inteligente sincronizado com a regra de fuso (UTC 0 = Pares, UTC +1 = Ímpares)
@@ -378,6 +391,7 @@ export function MediasAtrCard({ precoAtual = null, candles4h = [] }: MonitorProp
             <span className="font-extrabold text-white text-[40px] tabular-nums leading-tight tracking-wider">
               {tempoRestante4H}
             </span>
+
           </div>
         </div>
       </div>

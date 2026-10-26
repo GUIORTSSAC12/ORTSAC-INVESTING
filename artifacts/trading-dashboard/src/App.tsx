@@ -485,6 +485,24 @@ function Index({ onLogout }: { onLogout: () => void }) {
     null,
   );
 
+  const [zonaValor, setZonaValor] = useState(() => localStorage.getItem("zona_1s_valor") || "210.410");
+
+  useEffect(() => {
+    const atualizarZona = () => {
+      setZonaValor(localStorage.getItem("zona_1s_valor") || "210.410");
+      try {
+        const audio = new AudioContext();
+        const osc = audio.createOscillator();
+        osc.frequency.value = 880;
+        osc.connect(audio.destination);
+        osc.start();
+        setTimeout(() => osc.stop(), 150);
+      } catch (e) {}
+    };
+    window.addEventListener("zona_1s_atualizada", atualizarZona);
+    return () => window.removeEventListener("zona_1s_atualizada", atualizarZona);
+  }, []);
+
   // ==========================================
   // 1. ADICIONADO: Gatilho para forçar o fetch imediato
   // ==========================================
@@ -524,6 +542,35 @@ const handleMudarUtc = (offset: 0 | 1) => {
   const [candles4h, setCandles4H] = useState<Kline[]>([]);
   const [candles5h, setCandles5h] = useState<Kline[]>([]);
   const [candles1s, setCandles1s] = useState<Kline[]>([]); // Adicionado para o Semanal (1S)
+
+  // ==========================================
+  // AGORA SIM: O useEffect fica aqui embaixo, depois do candles1s existir!
+  // ==========================================
+  useEffect(() => {
+    if (!candles1s || candles1s.length < 2) return;
+
+    const ultimo1s = candles1s.at(-2);
+    if (!ultimo1s) return;
+
+    const abertura = ultimo1s.open ?? 0;
+    const maxima = ultimo1s.high ?? 0;
+    const minima = ultimo1s.low ?? 0;
+    const fechamento = ultimo1s.close ?? 0;
+
+    const amplitude = maxima - minima;
+    const isAlta = fechamento >= abertura;
+    const zonaCalculada = isAlta 
+      ? minima + (amplitude * 0.786) 
+      : maxima - (amplitude * 0.786);
+
+    try {
+      const valorFormatado = zonaCalculada.toFixed(3);
+      if (localStorage.getItem("zona_1s_valor") !== valorFormatado) {
+        localStorage.setItem("zona_1s_valor", valorFormatado);
+        window.dispatchEvent(new CustomEvent("zona_1s_atualizada"));
+      }
+    } catch (e) {}
+  }, [candles1s]);
 
   // Lê do localStorage ao iniciar (suporta '4H', '5H' ou '1S')
   const [visao, setVisao] = useState<string>(() => {
@@ -759,22 +806,36 @@ const handleMudarUtc = (offset: 0 | 1) => {
         }))
         .sort((a, b) => a.time - b.time);
 
-      // Se o intervalo pedido for 5h, agrupamos os candles de 1h ancorados às 02:00 UTC da corretora
+     // Se o intervalo pedido for 5h, agrupamos os candles de 1h respeitando a janela assimétrica da corretora (BingX)
       if (interval === "5h") {
         const blocos5hMap = new Map<number, Kline>();
         allKs.forEach(c => {
           const dataCandle = new Date(c.time);
           const horaUTC = dataCandle.getUTCHours();
-          
-          const horaAjustada = (horaUTC - 2 + 24) % 24;
-          const blocoIndex = Math.floor(horaAjustada / 5);
-          const blocoHoraUTC = (blocoIndex * 5 + 2) % 24;
-          
-          const dataAbertura = new Date(dataCandle);
-          if (horaUTC < 2 && blocoHoraUTC >= 22) {
-            dataAbertura.setUTCDate(dataAbertura.getUTCDate() - 1);
+          const ano = dataCandle.getUTCFullYear();
+          const mes = dataCandle.getUTCMonth();
+          const dia = dataCandle.getUTCDate();
+
+          let blocoStartHour = 12;
+          let offsetDias = 0;
+
+          // Define o início do bloco conforme a regra exata da corretora:
+          if (horaUTC >= 12 && horaUTC < 16) {
+            blocoStartHour = 12; // Bloco especial de 4 horas (12:00 - 16:00)
+          } else if (horaUTC >= 16 && horaUTC < 21) {
+            blocoStartHour = 16; // 5 horas (16:00 - 21:00)
+          } else if (horaUTC >= 21 || horaUTC < 2) {
+            blocoStartHour = 21; // 5 horas (21:00 - 02:00)
+            if (horaUTC < 2) {
+              offsetDias = -1; // Horas 00:00 e 01:00 pertencem ao bloco que começou no dia anterior às 21:00
+            }
+          } else if (horaUTC >= 2 && horaUTC < 7) {
+            blocoStartHour = 2;  // 5 horas (02:00 - 07:00)
+          } else if (horaUTC >= 7 && horaUTC < 12) {
+            blocoStartHour = 7;  // 5 horas (07:00 - 12:00)
           }
-          dataAbertura.setUTCHours(blocoHoraUTC, 0, 0, 0);
+
+          const dataAbertura = new Date(Date.UTC(ano, mes, dia + offsetDias, blocoStartHour, 0, 0, 0));
           const chaveTempo = dataAbertura.getTime();
 
           if (!blocos5hMap.has(chaveTempo)) {
@@ -789,7 +850,7 @@ const handleMudarUtc = (offset: 0 | 1) => {
             const bloco = blocos5hMap.get(chaveTempo)!;
             bloco.high = Math.max(bloco.high, c.high);
             bloco.low = Math.min(bloco.low, c.low);
-            bloco.close = c.close;
+            bloco.close = c.close; // Atualiza com o fechamento do candle de 1h mais recente do bloco
           }
         });
         allKs = Array.from(blocos5hMap.values()).sort((a, b) => a.time - b.time);
@@ -1358,8 +1419,8 @@ const handleMudarUtc = (offset: 0 | 1) => {
 
       {/* VALOR DA ZONA SEMANAL (EMPURRADO PARA BAIXO COM MT-1, MESMO TAMANHO E COR CIANO) */}
       <span className="font-bold text-[24px] tabular-nums leading-none mt-1 text-cyan-400 tracking-tight">
-        {localStorage.getItem("zona_1s_valor") || "210.410"}
-      </span>
+  {zonaValor}
+</span>
     </div>
 
     {/* Coluna do Botão de Mais */}
@@ -1765,6 +1826,7 @@ const handleMudarUtc = (offset: 0 | 1) => {
             : maxima - (amplitude * 0.786);
 
           return (
+            // ... resto do seu código normal do card ...
             <div className="flex flex-col h-full justify-around">
               <span className="text-[16px] font-bold text-cyan-400 uppercase tracking-wider mb-3 text-center">
                 Filtro 1S (0.786)
