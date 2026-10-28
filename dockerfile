@@ -9,13 +9,13 @@ FROM base AS build
 RUN apt-get update -qq && \
     apt-get install --no-install-recommends -y build-essential node-gyp pkg-config python-is-python3
 
-# Copia o repositório inteiro para o Docker respeitar o monorepo workspace
+# Copia o repositório inteiro para o Docker resolver o workspace do monorepo
 COPY . .
 
-# Instala as dependências na raiz ou direto na pasta da API
+# Instala as dependências usando a estrutura completa
 RUN npm install --include=dev
 
-# Entra na pasta da API, faz o build e limpa os devDependencies
+# Entra na pasta da API, compila e limpa os devDependencies
 WORKDIR /app/artifacts/api-server
 RUN npm run build
 RUN npm prune --omit=dev
