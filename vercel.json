@@ -1,0 +1,26 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "artifacts/api-service/src/index.ts",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "artifacts/trading-dashboard/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "artifacts/api-service/src/index.ts"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "artifacts/trading-dashboard/$1"
+    }
+  ]
+}
