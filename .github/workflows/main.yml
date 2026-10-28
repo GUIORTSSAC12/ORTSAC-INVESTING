@@ -14,4 +14,4 @@ jobs:
       - name: Push to hub
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: git push --force https://ortsac:$HF_TOKEN@huggingface.co/spaces/ortsac/investing main
+        run: git push --force https://QUORTSACK:$HF_TOKEN@huggingface.co/spaces/QUORTSACK/ORTSAC-INVESTING main
