@@ -1,0 +1,4 @@
+[build]
+  base = "trading-dashboard"
+  command = "npm run build"
+  publish = "trading-dashboard/dist"
