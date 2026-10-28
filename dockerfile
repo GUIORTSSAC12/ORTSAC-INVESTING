@@ -9,11 +9,11 @@ FROM base AS build
 RUN apt-get update -qq && \
     apt-get install --no-install-recommends -y build-essential node-gyp pkg-config python-is-python3
 
-# Aponta certinho para o package.json do api-server
+# Pega o package.json dentro da pasta certa do monorepo
 COPY artifacts/api-server/package.json ./
 RUN npm install --include=dev
 
-# Copia todo o código da API para a imagem
+# Copia todo o código da API para dentro da imagem
 COPY artifacts/api-server/ ./
 RUN npm run build
 RUN npm prune --omit=dev
